@@ -7,14 +7,20 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Слова">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#F3F5F9" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#14171D" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" id="theme-light" content="#F3F5F9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" id="theme-dark" content="#14171D" media="(prefers-color-scheme: dark)">
+<script>
+  try {
+    var t = localStorage.getItem("wc.theme");
+    if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {}
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="icon-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Literata:ital,opsz,wght@1,7..72,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;1,7..72,400&display=swap">
 <title>Слова</title>
 <style>
   :root {
@@ -33,7 +39,7 @@
     --read: "Literata", Georgia, "Times New Roman", serif;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #14171D;
       --surface: #1E222B;
       --ink: #EEF1F6;
@@ -46,6 +52,20 @@
       --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 14px 36px rgba(0, 0, 0, .35);
     }
   }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #14171D;
+    --surface: #1E222B;
+    --ink: #EEF1F6;
+    --muted: #98A1B3;
+    --line: #2C323E;
+    --accent: #7C9BFF;
+    --accent-ink: #0E1322;
+    --known: #4CC38A;
+    --danger: #FF7A6E;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 14px 36px rgba(0, 0, 0, .35);
+  }
+  :root[data-theme="light"] { color-scheme: light; }
 
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -116,7 +136,11 @@
   /* Прогресс */
   .status { display: grid; gap: 6px; }
   .progress { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-  .progress-fill { height: 100%; width: 0; background: var(--known); transition: width .4s ease; }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); transition: width .4s ease, background-color .3s; }
+  .progress-fill.done { background: var(--known); }
+  .status-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .goal-text { margin: 0; font-size: 14px; font-weight: 600; }
+  .streak { margin: 0; font-size: 14px; font-weight: 600; white-space: nowrap; }
   .status-text { margin: 0; font-size: 13px; color: var(--muted); }
   .error { margin: 0; font-size: 13px; color: var(--danger); }
 
@@ -124,7 +148,47 @@
   .view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
 
   /* Карточка */
-  .card-wrap { flex: 1; min-height: 0; display: flex; perspective: 1400px; }
+  .card-wrap {
+    position: relative; flex: 1; min-height: 0; display: flex; perspective: 1400px;
+    touch-action: pan-y;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  }
+  .card-wrap img { -webkit-user-drag: none; }
+  .card-wrap.flying { transition: transform .22s ease-in; }
+  .card-wrap.returning { transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
+  .swipe-badge {
+    position: absolute;
+    top: 18px;
+    z-index: 2;
+    padding: 6px 12px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 15px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .swipe-badge.right { left: 18px; background: var(--known); color: #fff; }
+  .swipe-badge.left { right: 18px; background: var(--muted); color: var(--surface); }
+
+  .modes { display: flex; gap: 6px; }
+  .modes button {
+    flex: 1;
+    border: 0;
+    padding: 7px 6px;
+    border-radius: 999px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .modes button[aria-checked="true"] {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    box-shadow: none;
+    color: var(--accent);
+    font-weight: 600;
+  }
   .card {
     position: relative;
     flex: 1;
@@ -161,7 +225,63 @@
     overflow-wrap: anywhere;
   }
   .tap-hint { margin: 0; font-size: 13px; color: var(--muted); }
+  .word.small { font-size: clamp(1.7rem, 7.5vw, 2.4rem); }
+  .front-sub { margin: 0; font-size: 1.1rem; color: var(--muted); white-space: pre-line; }
+  .cloze {
+    margin: 0;
+    font-family: var(--read);
+    font-size: clamp(1.25rem, 5.5vw, 1.6rem);
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+  .blank {
+    display: inline-block;
+    width: 5.5ch;
+    height: 1em;
+    margin: 0 .12em;
+    border-bottom: 3px solid var(--accent);
+    vertical-align: -0.1em;
+  }
+  .hl {
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+    color: inherit;
+    border-radius: 4px;
+    padding: 0 2px;
+  }
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
+    transform: translate(-50%, 12px);
+    z-index: 20;
+    max-width: calc(100% - 32px);
+    padding: 12px 18px;
+    border-radius: 14px;
+    background: var(--ink);
+    color: var(--bg);
+    font-weight: 600;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s, transform .25s;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+  .pic-wrap {
+    margin: -8px -4px 18px;
+    aspect-ratio: 16 / 10;
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--line);
+  }
+  .front .pic-wrap {
+    align-self: stretch;
+    flex-shrink: 1;
+    min-height: 90px;
+    margin: -8px -4px 4px;
+  }
+  .pic { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s ease; }
+  .pic-wrap.loaded .pic { opacity: 1; }
   .back-head { display: flex; align-items: center; gap: 6px; margin-bottom: 20px; }
   .back-head h2 {
     margin: 0;
@@ -312,7 +432,7 @@
   .range { width: 100%; accent-color: var(--accent); }
 
   @media (prefers-reduced-motion: reduce) {
-    .card, .progress-fill { transition: none; }
+    .card, .progress-fill, .pic, .card-wrap.flying, .card-wrap.returning, .toast { transition: none; }
     .icon-btn.spinning svg { animation: none; }
   }
 </style>
@@ -335,13 +455,25 @@
 
   <div class="status">
     <div class="progress" aria-hidden="true"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="status-row">
+      <p class="goal-text" id="goal-text"></p>
+      <p class="streak" id="streak" hidden></p>
+    </div>
     <p class="status-text" id="status-text"></p>
     <p class="error" id="error-text" role="alert" hidden></p>
   </div>
 
   <main>
     <section class="view" id="view-study" role="tabpanel" aria-labelledby="tab-study">
+      <div class="modes" id="modes" role="radiogroup" aria-label="Тип карточек">
+        <button type="button" role="radio" data-mode="word" aria-checked="true">Слово</button>
+        <button type="button" role="radio" data-mode="reverse" aria-checked="false">Перевод</button>
+        <button type="button" role="radio" data-mode="cloze" aria-checked="false">Пропуск</button>
+        <button type="button" role="radio" data-mode="mix" aria-checked="false">Микс</button>
+      </div>
       <div class="card-wrap" id="card-wrap">
+        <span class="swipe-badge right" id="badge-right" aria-hidden="true">Знаю</span>
+        <span class="swipe-badge left" id="badge-left" aria-hidden="true">Ещё учу</span>
         <div class="card" id="card" tabindex="0" role="button" aria-label="Перевернуть карточку">
           <div class="face front" id="front"></div>
           <div class="face back" id="back"></div>
@@ -361,6 +493,8 @@
   </main>
 </div>
 
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
 <dialog id="settings" aria-labelledby="settings-title">
   <div class="sheet">
     <h2 id="settings-title">Настройки</h2>
@@ -368,6 +502,24 @@
     <textarea id="url-input" rows="3" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?gid=…&amp;single=true&amp;output=csv" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
     <p class="hint">В Google Таблице: Файл → Поделиться → Опубликовать в интернете → лист WORDS → формат CSV → Опубликовать. Скопируйте ссылку сюда.</p>
     <label class="toggle"><input type="checkbox" id="only-unknown"> Показывать только невыученные</label>
+    <label class="toggle"><input type="checkbox" id="show-images"> Картинки к словам</label>
+    <p class="hint">Картинку рисует бесплатный сервис Pollinations по английскому слову и примеру. Чтобы поставить свою, вставьте ссылку на изображение в колонку F таблицы.</p>
+    <label for="goal-select">Цель на день</label>
+    <select class="select" id="goal-select">
+      <option value="5">5 карточек</option>
+      <option value="10">10 карточек</option>
+      <option value="15">15 карточек</option>
+      <option value="20">20 карточек</option>
+      <option value="30">30 карточек</option>
+      <option value="50">50 карточек</option>
+    </select>
+    <p class="hint">Считаются новые выученные слова и повторения. День засчитывается в серию, когда цель выполнена.</p>
+    <label for="theme-select">Оформление</label>
+    <select class="select" id="theme-select">
+      <option value="auto">Как в системе</option>
+      <option value="light">Светлое</option>
+      <option value="dark">Тёмное</option>
+    </select>
     <h3 class="sub">Озвучка</h3>
     <label for="voice-en">Английский голос</label>
     <div class="voice-row">
@@ -398,7 +550,7 @@
    Если репозиторий публичный, лучше оставить пустой и ввести ссылку в приложении. */
 const DEFAULT_SHEET_URL = "";
 
-const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed" };
+const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed", images: "wc.images", theme: "wc.theme", history: "wc.history", goal: "wc.goal", cardMode: "wc.cardMode" };
 const AUTO_REFRESH_MS = 10 * 60 * 1000;
 
 const storage = {
@@ -448,17 +600,54 @@ function parseWords(text) {
     const id = english.toLowerCase();
     if (seen.has(id)) continue;
     seen.add(id);
-    result.push({ id, english, russian: col(1), german: col(2), exampleEN: col(3), exampleDE: col(4) });
+    result.push({ id, english, russian: col(1), german: col(2), exampleEN: col(3), exampleDE: col(4), image: col(5) });
   }
   return result;
 }
 
+/* ---------- Пример карточки ---------- */
+// Показывается, пока не загружены слова из таблицы (в том числе в предпросмотре)
+const DEMO_SVG = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 400'>
+<rect width='640' height='400' fill='#E4EBFF'/>
+<circle cx='190' cy='165' r='112' fill='#FFF3C4'/>
+<g stroke='#FFC940' stroke-width='8' stroke-linecap='round'>
+<path d='M190 62V40'/><path d='M112 92 96 76'/><path d='M268 92l16-16'/><path d='M100 160H76'/><path d='M280 160h24'/></g>
+<circle cx='190' cy='160' r='62' fill='#FFC940'/>
+<rect x='166' y='212' width='48' height='22' rx='4' fill='#9AA3B5'/>
+<rect x='170' y='236' width='40' height='14' rx='4' fill='#7C8496'/>
+<path d='M190 250c0 50 70 66 140 50' fill='none' stroke='#18202E' stroke-width='6' stroke-linecap='round'/>
+<rect x='326' y='290' width='22' height='20' rx='4' fill='#18202E'/>
+<rect x='370' y='250' width='50' height='70' rx='8' fill='#7C9BFF'/>
+<rect x='440' y='200' width='50' height='120' rx='8' fill='#5577F0'/>
+<rect x='510' y='140' width='50' height='180' rx='8' fill='#2F5BEA'/>
+<rect x='356' y='320' width='224' height='6' rx='3' fill='#18202E'/>
+<path d='M378 222l70-48 52-46 58-44' fill='none' stroke='#18202E' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/>
+<path d='M530 80l30 4-6 30' fill='none' stroke='#18202E' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/>
+</svg>`;
+const DEMO_WORDS = [{
+  id: "demo:consumption",
+  demo: true,
+  english: "Consumption",
+  russian: "Потребление",
+  german: "Verbrauch / Konsum",
+  exampleEN: "Energy consumption is increasing every year.",
+  exampleDE: "Der Energieverbrauch steigt jedes Jahr.",
+  image: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(DEMO_SVG),
+}];
+const isDemo = () => words.length > 0 && words[0].demo === true;
+
 /* ---------- Состояние ---------- */
 let sheetUrl = storage.get(KEYS.url, DEFAULT_SHEET_URL) || "";
 let words = parseWords(storage.get(KEYS.csv, ""));
+if (!words.length) words = DEMO_WORDS.slice();
 let known = new Set(safeJSON(storage.get(KEYS.known, "[]"), []));
 let onlyUnknown = storage.get(KEYS.onlyUnknown, "1") === "1";
 let reviewed = safeObject(storage.get(KEYS.reviewed, "{}"));
+let showImages = storage.get(KEYS.images, "1") === "1";
+let history = safeObject(storage.get(KEYS.history, "{}"));
+let dailyGoal = Number(storage.get(KEYS.goal, "10")) || 10;
+let cardMode = storage.get(KEYS.cardMode, "word"); // "word" | "reverse" | "cloze" | "mix"
+let currentFace = "word";
 let mode = "learn"; // "learn" | "review"
 let current = null;
 let flipped = false;
@@ -482,9 +671,52 @@ function pool() {
   if (mode === "review") return reviewPool();
   return onlyUnknown ? toLearn() : words;
 }
-function reviewedToday() {
-  const start = new Date(); start.setHours(0, 0, 0, 0);
-  return Object.entries(reviewed).filter(([id, t]) => known.has(id) && t >= start.getTime()).length;
+/* ---------- Цель на день и серия ---------- */
+function dayKey(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function dayStats(key = dayKey()) {
+  return history[key] || { learned: 0, reviewed: 0, goal: dailyGoal };
+}
+function dayDone(key) {
+  const h = history[key];
+  return !!h && (h.learned || 0) + (h.reviewed || 0) >= (h.goal || dailyGoal);
+}
+function streakDays() {
+  const d = new Date();
+  if (!dayDone(dayKey(d))) d.setDate(d.getDate() - 1); // сегодня ещё можно успеть
+  let n = 0;
+  while (dayDone(dayKey(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function bump(field) {
+  const key = dayKey();
+  const h = { ...dayStats(key) };
+  const before = (h.learned || 0) + (h.reviewed || 0);
+  h[field] = (h[field] || 0) + 1;
+  h.goal = dailyGoal;
+  history[key] = h;
+  const keys = Object.keys(history).sort();
+  for (const k of keys.slice(0, Math.max(0, keys.length - 400))) delete history[k];
+  storage.set(KEYS.history, JSON.stringify(history));
+  if (before < dailyGoal && before + 1 >= dailyGoal) {
+    const n = streakDays();
+    showToast(n > 1 ? `Цель выполнена! ${n} ${plural(n, "день", "дня", "дней")} подряд 🔥` : "Цель на сегодня выполнена! 🎉");
+  }
+}
+function plural(n, one, few, many) {
+  const a = n % 10, b = n % 100;
+  if (a === 1 && b !== 11) return one;
+  if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return few;
+  return many;
+}
+let toastTimer = 0;
+function showToast(text) {
+  const t = $("toast");
+  t.textContent = text;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2800);
 }
 
 /* ---------- DOM-помощники ---------- */
@@ -585,6 +817,7 @@ function next() {
   if (mode === "review") candidates = candidates.slice(0, 5); // случайное из самых давно повторённых
   const list = candidates.length ? candidates : all;
   current = list.length ? list[Math.floor(Math.random() * list.length)] : null;
+  currentFace = current ? pickFace(current) : "word";
   setFlipped(false, true);
   renderStudy();
 }
@@ -598,12 +831,111 @@ function setFlipped(value, instant = false) {
   if (instant) { void card.offsetWidth; card.classList.remove("instant"); }
 }
 
+/* ---------- Типы карточек ---------- */
+const escapeRe = t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Ищет слово в английском примере с учётом форм: address → addressed, get used to → getting used to
+function clozeMatch(w) {
+  const sentence = w.exampleEN;
+  if (!sentence) return null;
+  const variants = w.english.split("/")
+    .map(v => v.trim().replace(/^to\s+/i, ""))
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  for (const v of variants) {
+    const tokens = v.toLowerCase().split(/\s+/).map(t => t.replace(/[^a-z'’-]/g, "")).filter(Boolean);
+    if (!tokens.length) continue;
+    const pattern = tokens
+      .map(t => escapeRe(t.length > 3 && t.endsWith("e") ? t.slice(0, -1) : t) + "[a-z'’]*")
+      .join("\\s+");
+    const m = new RegExp(`\\b${pattern}`, "i").exec(sentence);
+    if (m) return { start: m.index, end: m.index + m[0].length };
+  }
+  return null;
+}
+
+function pickFace(w) {
+  if (cardMode === "word" || cardMode === "reverse") return cardMode;
+  const hasCloze = !!clozeMatch(w);
+  if (cardMode === "cloze") return hasCloze ? "cloze" : "reverse"; // без подходящего примера — по переводу
+  const faces = hasCloze ? ["word", "reverse", "cloze"] : ["word", "reverse"];
+  return faces[Math.floor(Math.random() * faces.length)];
+}
+
+function setCardMode(value) {
+  cardMode = value;
+  storage.set(KEYS.cardMode, value);
+  renderModes();
+  if (current) {
+    currentFace = pickFace(current);
+    setFlipped(false, true);
+    renderCard(current);
+  }
+}
+function renderModes() {
+  for (const b of $("modes").querySelectorAll("button")) {
+    b.setAttribute("aria-checked", String(b.dataset.mode === cardMode));
+  }
+}
+
+/* ---------- Картинки ---------- */
+function seedFor(text) {
+  let h = 0;
+  for (const ch of text) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return h % 1000000;
+}
+function imageUrl(w) {
+  if (/^(https:\/\/|data:image\/)/i.test(w.image)) return w.image; // своя картинка из колонки F
+  const word = w.english.replace(/\s+/g, " ");
+  const context = w.exampleEN ? `, as in the sentence "${w.exampleEN}"` : "";
+  const prompt = `Simple flat illustration that clearly shows the meaning of "${word}"${context}. ` +
+    "Friendly, colorful, minimal, plain background, no text, no letters, no words";
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=640&height=400&seed=${seedFor(w.id)}&nologo=true`;
+}
+function picture(w) {
+  const url = imageUrl(w);
+  const wrap = el("div", { class: "pic-wrap" });
+  const img = el("img", { class: "pic", alt: "", decoding: "async", draggable: "false" });
+  let retried = false;
+  img.addEventListener("load", () => wrap.classList.add("loaded"));
+  img.addEventListener("error", () => {
+    // бесплатный сервис ограничивает частоту запросов: одна повторная попытка, потом без картинки
+    if (!retried) {
+      retried = true;
+      setTimeout(() => { if (wrap.isConnected) img.src = url; }, 16000);
+    } else {
+      wrap.remove();
+    }
+  });
+  img.src = url;
+  wrap.append(img);
+  return wrap;
+}
+
 function renderCard(w) {
-  $("front").replaceChildren(
-    el("p", { class: "word" }, w.english),
-    speakButton(w.english, "en-US", "Произнести по-английски"),
-    el("p", { class: "tap-hint" }, "Нажмите, чтобы увидеть перевод")
-  );
+  const match = clozeMatch(w);
+  let front;
+  if (currentFace === "reverse") {
+    front = [
+      el("p", { class: "word small" }, w.russian),
+      w.german ? el("p", { class: "front-sub" }, w.german) : null,
+      el("p", { class: "tap-hint" }, "Вспомните слово по-английски и нажмите"),
+    ];
+  } else if (currentFace === "cloze" && match) {
+    const s = w.exampleEN;
+    front = [
+      el("p", { class: "cloze" }, [s.slice(0, match.start), el("span", { class: "blank", "aria-label": "пропуск" }), s.slice(match.end)]),
+      el("p", { class: "front-sub" }, w.russian),
+      el("p", { class: "tap-hint" }, "Вспомните пропущенное слово и нажмите"),
+    ];
+  } else {
+    front = [
+      el("p", { class: "word" }, w.english),
+      speakButton(w.english, "en-US", "Произнести по-английски"),
+      el("p", { class: "tap-hint" }, "Нажмите, чтобы увидеть перевод"),
+    ];
+  }
+  $("front").replaceChildren(...[showImages ? picture(w) : null, ...front].filter(Boolean));
 
   const blocks = [
     el("div", { class: "back-head" }, [
@@ -627,7 +959,9 @@ function renderCard(w) {
   if (w.exampleEN || w.exampleDE) {
     blocks.push(el("div", { class: "examples" }, [
       w.exampleEN ? el("div", { class: "example-row" }, [
-        el("p", { class: "example" }, w.exampleEN),
+        el("p", { class: "example" }, match
+          ? [w.exampleEN.slice(0, match.start), el("mark", { class: "hl" }, w.exampleEN.slice(match.start, match.end)), w.exampleEN.slice(match.end)]
+          : w.exampleEN),
         speakButton(w.exampleEN, "en-US", "Произнести пример по-английски"),
       ]) : null,
       w.exampleDE ? el("div", { class: "example-row" }, [
@@ -636,7 +970,7 @@ function renderCard(w) {
       ]) : null,
     ]));
   }
-  $("back").replaceChildren(...blocks);
+  $("back").replaceChildren(...blocks.filter(Boolean));
   $("back").scrollTop = 0;
 }
 
@@ -645,6 +979,7 @@ function renderStudy() {
   const hasCard = !!current;
   $("card-wrap").hidden = !hasCard;
   $("actions").hidden = !hasCard;
+  $("modes").hidden = !hasCard;
   empty.hidden = hasCard;
 
   if (hasCard) { renderCard(current); return; }
@@ -715,10 +1050,20 @@ function renderList() {
 function renderStatus() {
   const total = words.length;
   const learned = total - toLearn().length;
-  $("progress-fill").style.width = total ? `${(learned / total) * 100}%` : "0";
+  const today = dayStats();
+  const done = (today.learned || 0) + (today.reviewed || 0);
+  const demo = isDemo();
+  $("progress-fill").style.width = `${Math.min(1, done / dailyGoal) * 100}%`;
+  $("progress-fill").classList.toggle("done", done >= dailyGoal);
+  $("goal-text").textContent = demo
+    ? "Это пример карточки. Ваши слова появятся после загрузки таблицы."
+    : done >= dailyGoal ? `Цель выполнена: ${done} из ${dailyGoal}` : `Сегодня ${done} из ${dailyGoal}`;
+  const streak = streakDays();
+  $("streak").hidden = demo || streak === 0;
+  $("streak").textContent = `🔥 ${streak} ${plural(streak, "день", "дня", "дней")} подряд`;
   const inReview = mode === "review" && $("view-list").hidden;
-  $("status-text").textContent = !total ? ""
-    : inReview ? `Выучено ${learned}, сегодня повторено ${reviewedToday()}`
+  $("status-text").textContent = demo || !total ? ""
+    : inReview ? `Выучено ${learned} из ${total}, сегодня повторено ${today.reviewed || 0}`
     : `Выучено ${learned} из ${total}`;
   $("error-text").hidden = !errorText;
   $("error-text").textContent = errorText;
@@ -763,6 +1108,9 @@ async function refresh() {
 function openSettings() {
   $("url-input").value = sheetUrl;
   $("only-unknown").checked = onlyUnknown;
+  $("show-images").checked = showImages;
+  $("theme-select").value = storage.get(KEYS.theme, "auto");
+  $("goal-select").value = String(dailyGoal);
   const updated = Number(storage.get(KEYS.updated, "0"));
   $("updated-text").textContent = updated
     ? `Последнее обновление: ${new Date(updated).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}`
@@ -819,40 +1167,157 @@ $("rate").addEventListener("input", e => {
   $("rate-value").textContent = `${speechRate.toFixed(2).replace(".", ",")}×`;
 });
 $("rate").addEventListener("change", () => speak(SAMPLES.en, "en-US"));
+$("show-images").addEventListener("change", e => {
+  showImages = e.target.checked;
+  storage.set(KEYS.images, showImages ? "1" : "0");
+  if (current) renderCard(current);
+});
 $("settings").addEventListener("click", e => { if (e.target === $("settings")) $("settings").close(); });
+
+/* ---------- Оформление ---------- */
+function applyTheme(theme) {
+  const root = document.documentElement;
+  const light = $("theme-light"), dark = $("theme-dark");
+  if (theme === "light" || theme === "dark") {
+    root.setAttribute("data-theme", theme);
+    const color = theme === "dark" ? "#14171D" : "#F3F5F9";
+    for (const m of [light, dark]) { m.setAttribute("content", color); m.removeAttribute("media"); }
+  } else {
+    root.removeAttribute("data-theme");
+    light.setAttribute("content", "#F3F5F9"); light.setAttribute("media", "(prefers-color-scheme: light)");
+    dark.setAttribute("content", "#14171D"); dark.setAttribute("media", "(prefers-color-scheme: dark)");
+  }
+}
+applyTheme(storage.get(KEYS.theme, "auto"));
+$("goal-select").addEventListener("change", e => {
+  dailyGoal = Number(e.target.value) || 10;
+  storage.set(KEYS.goal, String(dailyGoal));
+  const key = dayKey();
+  if (history[key]) { history[key].goal = dailyGoal; storage.set(KEYS.history, JSON.stringify(history)); }
+  renderStatus();
+});
+$("theme-select").addEventListener("change", e => {
+  storage.set(KEYS.theme, e.target.value);
+  applyTheme(e.target.value);
+});
 
 /* ---------- События ---------- */
 $("card").addEventListener("click", () => setFlipped(!flipped));
 $("card").addEventListener("keydown", e => {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFlipped(!flipped); }
 });
-$("again-btn").addEventListener("click", () => {
+function doAgain() {
   if (mode === "review" && current) {
     // забытое слово возвращается в изучение
     known.delete(current.id);
     delete reviewed[current.id];
     saveKnown();
     saveReviewed();
+    if (!current.demo) bump("reviewed");
   }
   next();
   renderStatus();
-});
-$("know-btn").addEventListener("click", () => {
+}
+function doKnow() {
   if (!current) return;
   if (mode === "review") {
     reviewed[current.id] = Date.now();
     saveReviewed();
-  } else {
+    if (!current.demo) bump("reviewed");
+  } else if (!known.has(current.id)) {
     known.add(current.id);
     saveKnown();
+    if (!current.demo) bump("learned");
   }
   next();
   renderStatus();
-});
-function updateButtons() {
-  $("again-btn").textContent = mode === "review" ? "Забыл" : "Ещё учу";
-  $("know-btn").textContent = mode === "review" ? "Помню" : "Знаю";
 }
+$("again-btn").addEventListener("click", doAgain);
+$("know-btn").addEventListener("click", doKnow);
+function updateButtons() {
+  const review = mode === "review";
+  $("again-btn").textContent = $("badge-left").textContent = review ? "Забыл" : "Ещё учу";
+  $("know-btn").textContent = $("badge-right").textContent = review ? "Помню" : "Знаю";
+}
+
+$("modes").addEventListener("click", e => {
+  const b = e.target.closest("button[data-mode]");
+  if (b) setCardMode(b.dataset.mode);
+});
+
+// Свайпы: вправо — «Знаю/Помню», влево — «Ещё учу/Забыл»
+(function setupSwipe() {
+  const wrap = $("card-wrap");
+  const THRESHOLD = 90;
+  let startX = 0, startY = 0, dx = 0, pid = null, tracking = false, swiping = false, suppressClick = false;
+
+  function reset() {
+    wrap.style.transform = "";
+    $("badge-right").style.opacity = "0";
+    $("badge-left").style.opacity = "0";
+    swiping = false;
+  }
+  wrap.addEventListener("pointerdown", e => {
+    if (!current || (e.pointerType === "mouse" && e.button !== 0)) return;
+    tracking = true; swiping = false; dx = 0;
+    startX = e.clientX; startY = e.clientY; pid = e.pointerId;
+  });
+  wrap.addEventListener("pointermove", e => {
+    if (!tracking || e.pointerId !== pid) return;
+    const x = e.clientX - startX, y = e.clientY - startY;
+    if (!swiping) {
+      if (Math.abs(x) > 10 && Math.abs(x) > Math.abs(y) * 1.2) {
+        swiping = true;
+        try { wrap.setPointerCapture(pid); } catch {}
+      } else if (Math.abs(y) > 10) {
+        tracking = false;
+        return;
+      } else {
+        return;
+      }
+    }
+    dx = x;
+    wrap.style.transform = `translateX(${dx}px) rotate(${dx / 22}deg)`;
+    const p = Math.min(1, Math.abs(dx) / THRESHOLD);
+    $("badge-right").style.opacity = String(dx > 0 ? p : 0);
+    $("badge-left").style.opacity = String(dx < 0 ? p : 0);
+  });
+  function end(e) {
+    if (!tracking || e.pointerId !== pid) return;
+    tracking = false;
+    if (!swiping) return;
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 350);
+    if (Math.abs(dx) >= THRESHOLD && e.type === "pointerup") {
+      const dir = dx > 0 ? 1 : -1;
+      wrap.classList.add("flying");
+      wrap.style.transform = `translateX(${dir * window.innerWidth}px) rotate(${dir * 18}deg)`;
+      setTimeout(() => {
+        wrap.classList.remove("flying");
+        reset();
+        if (dir > 0) doKnow(); else doAgain();
+      }, 220);
+    } else {
+      wrap.classList.add("returning");
+      reset();
+      setTimeout(() => wrap.classList.remove("returning"), 260);
+    }
+  }
+  wrap.addEventListener("pointerup", end);
+  wrap.addEventListener("pointercancel", end);
+  // после свайпа не переворачивать карточку
+  wrap.addEventListener("click", e => {
+    if (suppressClick) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
+})();
+
+// Стрелки на клавиатуре (удобно на компьютере)
+document.addEventListener("keydown", e => {
+  if ($("settings").open || $("view-study").hidden || !current) return;
+  if (e.target.closest && e.target.closest("input, textarea, select")) return;
+  if (e.key === "ArrowRight") { e.preventDefault(); doKnow(); }
+  if (e.key === "ArrowLeft") { e.preventDefault(); doAgain(); }
+});
 $("refresh-btn").addEventListener("click", refresh);
 $("settings-btn").addEventListener("click", openSettings);
 $("search").addEventListener("input", renderList);
@@ -885,6 +1350,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 /* ---------- Старт ---------- */
+renderModes();
 next();
 renderAll();
 refresh();
