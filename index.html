@@ -706,7 +706,7 @@
     <input class="range" type="range" id="rate" min="0.6" max="1.2" step="0.05">
     <p class="hint">Голоса с пометкой Enhanced или Premium звучат естественнее. Скачать их можно на iPhone: Настройки → Универсальный доступ → Устный контент → Голоса.</p>
     <p class="hint" id="updated-text"></p>
-    <p class="hint" id="version-text">Версия 22</p>
+    <p class="hint" id="version-text">Версия 23</p>
     <div class="sheet-actions">
       <button type="button" class="btn primary" id="save-btn">Сохранить и загрузить</button>
       <button type="button" class="btn secondary" id="close-btn">Закрыть</button>
@@ -1938,7 +1938,14 @@ let storyPrompt = "";
 let storyShowTranslation = false;
 
 function safeStory(text) {
-  try { const v = JSON.parse(text); return v && typeof v.story === "string" ? v : null; } catch { return null; }
+  try {
+    const v = JSON.parse(text);
+    if (!v) return null;
+    if (typeof v.story === "string") { // история из прошлой версии приложения
+      return { items: v.items || [], [v.lang === "de" ? "de" : "en"]: { title: v.title || "", story: v.story }, translation: v.translation || "", createdAt: v.createdAt };
+    }
+    return v.en || v.de ? v : null;
+  } catch { return null; }
 }
 function learnedWords() {
   return words.filter(w => !w.demo && known.has(w.id));
@@ -1952,43 +1959,46 @@ function pickStoryWords() {
   }
   return pool.slice(0, STORY_WORDS);
 }
-function buildStoryPrompt(items, lang) {
-  const language = lang === "de" ? "German" : "English";
-  const list = items.map((w, i) => {
-    const target = lang === "de" ? (w.german || w.english) : w.english;
-    const other = lang === "de" ? `English: ${w.english}` : (w.german ? `German: ${w.german}` : "");
-    return `${i + 1}. ${target} (${[other, `Russian: ${w.russian}`].filter(Boolean).join("; ")})`;
-  }).join("\n");
-  return `Write a short, engaging everyday story in ${language} for a B1–B2 learner, 150–220 words, 3–4 paragraphs.
-Use ALL of these vocabulary items naturally, each at least once (inflected forms are fine; for items with several options separated by "/", use the one that fits):
+function buildStoryPrompt(items) {
+  const list = items.map((w, i) =>
+    `${i + 1}. English: ${w.english} | German: ${w.german || w.english} | Russian: ${w.russian}`).join("\n");
+  return `Write a short, engaging everyday story for a B1–B2 learner, 150–220 words, 3–4 paragraphs.
+Write it in English, and then write the SAME story in natural German: same plot, same paragraphs, same events.
+Use ALL of these vocabulary items, each at least once in each version: the English item in the English version, the German item in the German version (inflected forms are fine; for items with several options separated by "/", use the one that fits):
 ${list}
 
-Every time you use one of these items, wrap exactly the words you used like this: [[the words|N]], where N is the item number. Do not wrap anything else.
+In both versions, every time you use one of these items, wrap exactly the words you used like this: [[the words|N]], where N is the item number. Do not wrap anything else.
 Return ONLY valid JSON, no markdown, in this shape:
-{"title": "short title in ${language}", "story": "the story with [[...|N]] marks, paragraphs separated by \\n\\n", "translation": "full natural Russian translation of the story without marks"}`;
+{"en": {"title": "short English title", "story": "English story with [[...|N]] marks, paragraphs separated by \\n\\n"}, "de": {"title": "short German title", "story": "German story with [[...|N]] marks, paragraphs separated by \\n\\n"}, "translation": "full natural Russian translation of the story without marks"}`;
 }
-function parseStoryReply(text) {
+// Ответ ИИ → { en: {title, story}, de: {title, story}, translation }
+function parseStoryReply(text, fallbackLang = storyLang) {
   const raw = String(text || "").trim();
   let data = null;
   const start = raw.indexOf("{"), end = raw.lastIndexOf("}");
   if (start >= 0 && end > start) {
     try { data = JSON.parse(raw.slice(start, end + 1)); } catch {}
   }
-  if (!data || typeof data.story !== "string") {
-    if (!/\[\[[^\]]+\|\d+\]\]/.test(raw)) return null;
-    data = { title: "", story: raw, translation: "" }; // вставили просто текст с пометками
+  const version = v => v && typeof v.story === "string" && v.story.trim()
+    ? { title: String(v.title || ""), story: v.story } : null;
+  if (data && (version(data.en) || version(data.de))) {
+    return { en: version(data.en), de: version(data.de), translation: String(data.translation || "") };
   }
-  return { title: String(data.title || ""), story: data.story, translation: String(data.translation || "") };
+  if (data && typeof data.story === "string") { // ответ в старом виде: одна версия
+    return { [fallbackLang]: version(data), translation: String(data.translation || "") };
+  }
+  if (!/\[\[[^\]]+\|\d+\]\]/.test(raw)) return null;
+  return { [fallbackLang]: { title: "", story: raw }, translation: "" }; // вставили просто текст с пометками
 }
 
 async function generateStory() {
   const items = pickStoryWords();
   if (items.length < 3) { renderStory(); return; }
-  storyPrompt = buildStoryPrompt(items, storyLang);
+  storyPrompt = buildStoryPrompt(items);
   storyState = "loading";
   storyError = "";
   renderStory();
-  const pending = { lang: storyLang, items: items.map(w => w.id) };
+  const pending = { items: items.map(w => w.id) };
   try {
     const reply = await callStoryModel(STORY_SYSTEM, storyPrompt);
     const parsed = parseStoryReply(reply);
@@ -2129,7 +2139,12 @@ function saveStory(data) {
 function storyItems() {
   return (story && story.items || []).map(id => words.find(w => w.id === id) || null);
 }
-function langTag() { return story && story.lang === "de" ? "de-DE" : "en-US"; }
+function shownLang() {
+  if (!story) return storyLang;
+  return story[storyLang] ? storyLang : (story.en ? "en" : "de");
+}
+function shownVersion() { return story ? story[shownLang()] : null; }
+function langTag() { return shownLang() === "de" ? "de-DE" : "en-US"; }
 
 // Текст абзаца: отмеченные слова — кнопки с переводом, остальные слова озвучиваются по касанию
 function renderParagraph(text, items) {
@@ -2198,8 +2213,9 @@ function openWordSheet(w, used) {
 $("word-sheet").addEventListener("click", e => { if (e.target === $("word-sheet")) $("word-sheet").close(); });
 
 function speakStory() {
-  if (!story) return;
-  const text = story.story.replace(/\[\[([^\]|]+)\|\d+\]\]/g, "$1").replace(/\n+/g, " ");
+  const v = shownVersion();
+  if (!v) return;
+  const text = v.story.replace(/\[\[([^\]|]+)\|\d+\]\]/g, "$1").replace(/\n+/g, " ");
   speak(text, langTag());
 }
 
@@ -2218,7 +2234,7 @@ function renderStory() {
   if (storyState === "loading") {
     box.replaceChildren(el("div", { class: "story-empty" }, [
       el("div", { class: "spinner", "aria-hidden": "true" }),
-      el("p", {}, "Пишу историю из ваших слов… Обычно это занимает 5–20 секунд."),
+      el("p", {}, "Пишу историю на английском и немецком… Обычно это занимает 5–20 секунд."),
     ]));
     return;
   }
@@ -2239,7 +2255,7 @@ function renderStory() {
         el("button", { class: "btn secondary", type: "button", onclick: () => {
           const parsed = parseStoryReply(area.value);
           if (!parsed) { showToast("Не нашёл в тексте историю с пометками [[…|N]]"); return; }
-          saveStory({ ...(storyPending || { lang: storyLang, items: [] }), ...parsed });
+          saveStory({ ...(storyPending || { items: [] }), ...parsed });
         } }, "Показать вставленную историю"),
       ]),
     ]));
@@ -2260,7 +2276,9 @@ function renderStory() {
 
   const items = storyItems();
   const found = items.filter(Boolean);
-  const paragraphs = story.story.split(/\n\s*\n|\n/).map(t => t.trim()).filter(Boolean);
+  const version = shownVersion();
+  const missing = storyLang !== shownLang(); // старая история только на одном языке
+  const paragraphs = version.story.split(/\n\s*\n|\n/).map(t => t.trim()).filter(Boolean);
   const listenBtn = el("button", { class: "btn secondary", type: "button", onclick: speakStory }, "▶ Прослушать");
   const stopBtn = el("button", { class: "btn secondary", type: "button", onclick: () => speechSynthesis.cancel() }, "■ Стоп");
   const trBtn = story.translation ? el("button", { class: "btn secondary", type: "button", onclick: () => {
@@ -2269,7 +2287,8 @@ function renderStory() {
   } }, storyShowTranslation ? "Скрыть перевод" : "Перевод") : null;
 
   box.replaceChildren(...[
-    story.title ? el("h2", {}, story.title) : null,
+    missing ? el("p", { class: "story-meta" }, `Эта история есть только на ${shownLang() === "de" ? "немецком" : "английском"}. Нажмите «Новая история», чтобы получить её сразу на двух языках.`) : null,
+    version.title ? el("h2", {}, version.title) : null,
     el("p", { class: "story-meta" }, found.length
       ? `Слова в истории: ${found.map(w => storyLangWord(w)).join(", ")}`
       : "История"),
@@ -2279,7 +2298,7 @@ function renderStory() {
   ].filter(Boolean));
 }
 function storyLangWord(w) {
-  return story && story.lang === "de" && w.german ? w.german.split("/")[0].trim() : w.english;
+  return shownLang() === "de" && w.german ? w.german.split("/")[0].trim() : w.english;
 }
 
 $("story-new").addEventListener("click", generateStory);
@@ -2288,7 +2307,8 @@ $("story-lang").addEventListener("click", e => {
   if (!b) return;
   storyLang = b.dataset.lang;
   storage.set(KEYS.storyLang, storyLang);
-  renderStoryLang();
+  speechSynthesis.cancel();
+  renderStory();
 });
 
 /* ---------- Без масштабирования страницы ---------- */
