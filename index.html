@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Слова">
@@ -68,8 +68,16 @@
   :root[data-theme="light"] { color-scheme: light; }
 
   * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;            /* страница не прокручивается и не «пружинит» */
+    overscroll-behavior: none;
+    touch-action: manipulation;  /* без увеличения двойным касанием */
+  }
   body {
+    position: fixed;
+    inset: 0;
     background: var(--bg);
     color: var(--ink);
     font: 16px/1.4 var(--ui);
@@ -211,6 +219,7 @@
     box-shadow: var(--shadow);
     padding: 28px 24px;
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .back { transform: rotateY(180deg); }
 
@@ -352,6 +361,7 @@
     font-size: 16px;
   }
   .word-list {
+    overscroll-behavior: contain;
     list-style: none;
     margin: 0;
     padding: 0;
@@ -388,6 +398,8 @@
 
   /* Настройки */
   dialog {
+    overflow-y: auto;
+    overscroll-behavior: contain;
     width: min(520px, calc(100% - 24px));
     max-height: calc(100% - 48px);
     border: 0;
@@ -1351,6 +1363,14 @@ document.addEventListener("visibilitychange", () => {
   const updated = Number(storage.get(KEYS.updated, "0"));
   if (Date.now() - updated > AUTO_REFRESH_MS) refresh();
 });
+
+/* ---------- Без масштабирования страницы ---------- */
+for (const type of ["gesturestart", "gesturechange", "gestureend"]) {
+  document.addEventListener(type, e => e.preventDefault(), { passive: false });
+}
+document.addEventListener("touchmove", e => {
+  if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
 
 /* ---------- Старт ---------- */
 renderModes();
