@@ -672,6 +672,9 @@
       <option value="off">Без картинок</option>
     </select>
     <p class="hint" id="image-hint"></p>
+    <label for="gemini-key">Ключ Gemini для историй</label>
+    <input class="select" id="gemini-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Необязательно, но так надёжнее">
+    <p class="hint">Бесплатно: войдите в aistudio.google.com через Google-аккаунт, нажмите «Get API key» и вставьте ключ сюда. Ключ хранится только на этом устройстве и отправляется только в Google.</p>
     <label for="goal-select">Цель на день</label>
     <select class="select" id="goal-select">
       <option value="5">5 карточек</option>
@@ -703,7 +706,7 @@
     <input class="range" type="range" id="rate" min="0.6" max="1.2" step="0.05">
     <p class="hint">Голоса с пометкой Enhanced или Premium звучат естественнее. Скачать их можно на iPhone: Настройки → Универсальный доступ → Устный контент → Голоса.</p>
     <p class="hint" id="updated-text"></p>
-    <p class="hint" id="version-text">Версия 20</p>
+    <p class="hint" id="version-text">Версия 21</p>
     <div class="sheet-actions">
       <button type="button" class="btn primary" id="save-btn">Сохранить и загрузить</button>
       <button type="button" class="btn secondary" id="close-btn">Закрыть</button>
@@ -720,7 +723,7 @@
    Если репозиторий публичный, лучше оставить пустой и ввести ссылку в приложении. */
 const DEFAULT_SHEET_URL = "";
 
-const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed", images: "wc.images", imageSource: "wc.imageSource", pics: "wc.pics", theme: "wc.theme", history: "wc.history", goal: "wc.goal", cardMode: "wc.cardMode", learnedOn: "wc.learnedOn", story: "wc.story", storyLang: "wc.storyLang", source: "wc.source", packs: "wc.packs" };
+const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed", images: "wc.images", imageSource: "wc.imageSource", pics: "wc.pics", theme: "wc.theme", history: "wc.history", goal: "wc.goal", cardMode: "wc.cardMode", learnedOn: "wc.learnedOn", story: "wc.story", storyLang: "wc.storyLang", geminiKey: "wc.geminiKey", source: "wc.source", packs: "wc.packs" };
 const AUTO_REFRESH_MS = 10 * 60 * 1000;
 
 const storage = {
@@ -1193,7 +1196,7 @@ function imageUrl(w) {
 }
 /* ---------- Фото из открытых источников ---------- */
 const IMAGE_HINTS = {
-  photo: "Фото ищутся по английскому слову в Openverse (открытые фото Flickr, Wikimedia и др.). Если фото не подходит, нажмите ↻ на картинке. Своё фото можно задать ссылкой в колонке F таблицы.",
+  photo: "Фото ищутся по английскому слову в Wikimedia Commons, а если там ничего нет — в Openverse. Если фото не подходит, нажмите ↻ на картинке. Своё фото можно задать ссылкой в колонке F таблицы.",
   ai: "Картинку рисует бесплатный сервис Pollinations по вашему примеру. Без регистрации он даёт одну новую картинку примерно раз в 45 секунд, поэтому картинки появляются постепенно.",
   custom: "Показываются только картинки, ссылки на которые вы вставили в колонку F таблицы.",
   off: "Карточки без картинок.",
@@ -1205,7 +1208,7 @@ let photoQueue = Promise.resolve(), lastPhotoSearch = 0;
 function queued(task) {
   // поиски идут по одному с паузой больше секунды: так требует Openverse
   const run = async () => {
-    const wait = Math.max(0, lastPhotoSearch + 1100 - Date.now());
+    const wait = Math.max(0, lastPhotoSearch + 300 - Date.now());
     if (wait) await new Promise(r => setTimeout(r, wait));
     lastPhotoSearch = Date.now();
     return task();
@@ -1214,10 +1217,16 @@ function queued(task) {
   photoQueue = p.catch(() => {});
   return p;
 }
+function withTimeout(ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return { signal: ctrl.signal, done: () => clearTimeout(timer) };
+}
 async function searchOpenverse(term, wide) {
   const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(term)}&page_size=10&mature=false` +
     (wide ? "&aspect_ratio=wide" : "");
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const t = withTimeout(6000); // Openverse бывает очень медленным
+  const res = await fetch(url, { headers: { Accept: "application/json" }, signal: t.signal }).finally(t.done);
   if (!res.ok) throw new Error(`Openverse ${res.status}`);
   const data = await res.json();
   return (data.results || []).map(r => ({ t: r.thumbnail || "", u: r.url || "" })).filter(r => r.t || r.u);
@@ -1225,8 +1234,9 @@ async function searchOpenverse(term, wide) {
 async function searchCommons(term) {
   const url = "https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*" +
     "&generator=search&gsrnamespace=6&gsrlimit=10&prop=imageinfo&iiprop=url&iiurlwidth=640" +
-    `&gsrsearch=${encodeURIComponent("filetype:bitmap " + term)}`;
-  const res = await fetch(url);
+    `&gsrsearch=${encodeURIComponent("filemime:image/jpeg " + term)}`; // только фото, без схем и логотипов
+  const t = withTimeout(6000);
+  const res = await fetch(url, { signal: t.signal }).finally(t.done);
   if (!res.ok) throw new Error(`Commons ${res.status}`);
   const data = await res.json();
   return Object.values((data.query && data.query.pages) || {})
@@ -1255,12 +1265,12 @@ function findPhotos(w) {
   if (photoPending.has(w.id)) return photoPending.get(w.id);
   const term = searchTerm(w);
   const p = queued(async () => {
+    // Wikimedia Commons отвечает за 1–3 секунды, Openverse — иногда 10+ секунд,
+    // поэтому сначала Commons, а Openverse только если там ничего не нашлось
     let urls = [];
-    try {
-      urls = await searchOpenverse(term, true);
-      if (!urls.length) urls = await searchOpenverse(term, false);
-    } catch {
-      urls = await searchCommons(term); // Openverse недоступен или лимит — ищем в Wikimedia Commons
+    try { urls = await searchCommons(term); } catch {}
+    if (!urls.length) {
+      try { urls = await searchOpenverse(term, true); } catch {}
     }
     const entry = { urls: urls.slice(0, 10), i: 0 };
     picMap[w.id] = entry;
@@ -1538,6 +1548,7 @@ function openSettings() {
   $("url-input").value = sheetUrl;
   $("only-unknown").checked = onlyUnknown;
   $("word-source").value = wordSource;
+  $("gemini-key").value = storage.get(KEYS.geminiKey, "");
   updatePacksButton();
   $("image-source").value = imageSource;
   $("image-hint").textContent = IMAGE_HINTS[imageSource] || "";
@@ -1890,6 +1901,7 @@ function openPacks() {
   $("packs-dialog").showModal();
 }
 $("packs-btn").addEventListener("click", openPacks);
+$("gemini-key").addEventListener("change", e => storage.set(KEYS.geminiKey, e.target.value.trim()));
 $("packs-all").addEventListener("click", () => {
   selectedPacks = allPacks().map(p => p.id);
   storage.set(KEYS.packs, JSON.stringify(selectedPacks));
@@ -1974,36 +1986,76 @@ async function generateStory() {
   renderStory();
   const pending = { lang: storyLang, items: items.map(w => w.id) };
   try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 60000);
-    const res = await fetch("https://text.pollinations.ai/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "openai",
-        jsonMode: true,
-        seed: Math.floor(Math.random() * 1e6),
-        referrer: "slova-app",
-        messages: [
-          { role: "system", content: "You are a friendly language teacher who writes graded reading practice. You always follow the output format exactly." },
-          { role: "user", content: storyPrompt },
-        ],
-      }),
-      signal: ctrl.signal,
-    });
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(res.status === 402 || res.status === 429 ? "лимит бесплатного сервиса" : `сервер ответил ${res.status}`);
-    const parsed = parseStoryReply(await res.text());
+    const reply = await callStoryModel(STORY_SYSTEM, storyPrompt);
+    const parsed = parseStoryReply(reply);
     if (!parsed) throw new Error("ответ пришёл в неожиданном виде");
     saveStory({ ...pending, ...parsed });
   } catch (e) {
     storyState = "error";
     storyError = e && e.name === "AbortError" ? "сервис слишком долго не отвечает" : (e && e.message) || String(e);
+    if (!storage.get(KEYS.geminiKey, "")) {
+      storyError += ". Бесплатный сервис без ключа работает нестабильно — добавьте бесплатный ключ Gemini в настройках, и истории будут писаться за несколько секунд";
+    }
     storyPending = pending;
     renderStory();
   }
 }
 let storyPending = null;
+const STORY_SYSTEM = "You are a friendly language teacher who writes graded reading practice. You always follow the output format exactly.";
+
+async function callStoryModel(system, prompt) {
+  const key = storage.get(KEYS.geminiKey, "").trim();
+  return key ? callGemini(key, system, prompt) : callPollinations(system, prompt);
+}
+
+// Google Gemini: бесплатный ключ из aistudio.google.com, хранится только на этом устройстве
+async function callGemini(key, system, prompt) {
+  let lastError = new Error("модель Gemini не найдена");
+  for (const model of ["gemini-flash-latest", "gemini-2.5-flash"]) {
+    const t = withTimeout(45000);
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json", temperature: 0.9 },
+      }),
+      signal: t.signal,
+    }).finally(t.done);
+    if (res.status === 404) continue;
+    if (res.status === 400 || res.status === 401 || res.status === 403) {
+      throw new Error("ключ Gemini не подошёл, проверьте его в настройках");
+    }
+    if (res.status === 429) throw new Error("лимит бесплатного Gemini, попробуйте через минуту");
+    if (!res.ok) { lastError = new Error(`Gemini ответил ${res.status}`); continue; }
+    const data = await res.json();
+    const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+    const text = parts.map(p => p.text || "").join("");
+    if (text) return text;
+    lastError = new Error("Gemini вернул пустой ответ");
+  }
+  throw lastError;
+}
+
+// Pollinations без ключа: бесплатно, но может отказать
+async function callPollinations(system, prompt) {
+  const t = withTimeout(30000);
+  const res = await fetch("https://text.pollinations.ai/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      seed: Math.floor(Math.random() * 1e6),
+      referrer: "slova-app",
+      messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
+    }),
+    signal: t.signal,
+  }).finally(t.done);
+  if (!res.ok) {
+    throw new Error(res.status === 402 || res.status === 429 ? "бесплатный сервис без ключа отказал (лимит)" : `сервис ответил ${res.status}`);
+  }
+  return res.text();
+}
 function saveStory(data) {
   story = { ...data, createdAt: Date.now() };
   storage.set(KEYS.story, JSON.stringify(story));
@@ -2117,6 +2169,7 @@ function renderStory() {
       el("p", {}, `Причина: ${storyError}. Попробуйте ещё раз через минуту или сделайте историю в любом чате с ИИ, например в Claude.`),
       el("div", { class: "story-fallback" }, [
         el("button", { class: "btn primary", type: "button", onclick: generateStory }, "Попробовать ещё раз"),
+        !storage.get(KEYS.geminiKey, "") ? el("button", { class: "btn secondary", type: "button", onclick: openSettings }, "Добавить ключ Gemini") : null,
         el("button", { class: "btn secondary", type: "button", onclick: async () => {
           try { await navigator.clipboard.writeText(storyPrompt); showToast("Задание скопировано"); }
           catch { area.value = storyPrompt; area.select(); showToast("Скопируйте задание из поля ниже"); }
