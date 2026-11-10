@@ -291,6 +291,20 @@
   .toggle { display: flex; align-items: center; gap: 10px; font-weight: 500 !important; }
   .toggle input { width: 22px; height: 22px; accent-color: var(--accent); }
   .sheet-actions { display: grid; gap: 8px; margin-top: 4px; }
+  .sub { margin: 8px 0 0; font-size: 1.05rem; padding-top: 14px; border-top: 1px solid var(--line); }
+  .voice-row { display: flex; align-items: center; gap: 8px; }
+  .select {
+    flex: 1;
+    min-width: 0;
+    padding: 11px 12px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--bg);
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 15px;
+    color: var(--ink);
+  }
+  .range { width: 100%; accent-color: var(--accent); }
 
   @media (prefers-reduced-motion: reduce) {
     .card, .progress-fill { transition: none; }
@@ -348,6 +362,20 @@
     <textarea id="url-input" rows="3" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?gid=…&amp;single=true&amp;output=csv" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
     <p class="hint">В Google Таблице: Файл → Поделиться → Опубликовать в интернете → лист WORDS → формат CSV → Опубликовать. Скопируйте ссылку сюда.</p>
     <label class="toggle"><input type="checkbox" id="only-unknown"> Показывать только невыученные</label>
+    <h3 class="sub">Озвучка</h3>
+    <label for="voice-en">Английский голос</label>
+    <div class="voice-row">
+      <select class="select" id="voice-en"></select>
+      <button type="button" class="speak" id="test-en" aria-label="Прослушать английский голос"></button>
+    </div>
+    <label for="voice-de">Немецкий голос</label>
+    <div class="voice-row">
+      <select class="select" id="voice-de"></select>
+      <button type="button" class="speak" id="test-de" aria-label="Прослушать немецкий голос"></button>
+    </div>
+    <label for="rate">Скорость речи: <span id="rate-value"></span></label>
+    <input class="range" type="range" id="rate" min="0.6" max="1.2" step="0.05">
+    <p class="hint">Голоса с пометкой Enhanced или Premium звучат естественнее. Скачать их можно на iPhone: Настройки → Универсальный доступ → Устный контент → Голоса.</p>
     <p class="hint" id="updated-text"></p>
     <div class="sheet-actions">
       <button type="button" class="btn primary" id="save-btn">Сохранить и загрузить</button>
@@ -364,7 +392,7 @@
    Если репозиторий публичный, лучше оставить пустой и ввести ссылку в приложении. */
 const DEFAULT_SHEET_URL = "";
 
-const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown" };
+const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate" };
 const AUTO_REFRESH_MS = 10 * 60 * 1000;
 
 const storage = {
@@ -463,16 +491,69 @@ function speakButton(text, lang, label) {
 }
 
 /* ---------- Озвучка ---------- */
+// Шуточные системные голоса macOS/iOS, которые не подходят для учёбы
+const NOVELTY = new Set(["Albert", "Bad News", "Bahh", "Bells", "Boing", "Bubbles", "Cellos", "Good News",
+  "Jester", "Organ", "Superstar", "Trinoids", "Whisper", "Wobble", "Zarvox", "Junior", "Ralph", "Fred", "Kathy"]);
+const SAMPLES = { en: "Energy consumption is increasing every year.", de: "Der Energieverbrauch steigt jedes Jahr." };
+
+let voicePrefs = { en: storage.get(KEYS.voiceEN, ""), de: storage.get(KEYS.voiceDE, "") };
+let speechRate = Number(storage.get(KEYS.rate, "0.95")) || 0.95;
+
+const normLang = v => v.lang.replace("_", "-").toLowerCase();
+const isBetter = v => /premium|enhanced|улучш|erweitert|neural|natural/i.test(v.name) ? 0 : 1;
+
+function voicesFor(lang) {
+  if (!("speechSynthesis" in window)) return [];
+  const prefix = lang.slice(0, 2);
+  const exact = v => normLang(v) === lang.toLowerCase() ? 0 : 1;
+  return speechSynthesis.getVoices()
+    .filter(v => normLang(v).startsWith(prefix) && !NOVELTY.has(v.name.split(" (")[0]))
+    .sort((a, b) => isBetter(a) - isBetter(b) || exact(a) - exact(b) || a.name.localeCompare(b.name));
+}
+
+function pickVoice(lang) {
+  const list = voicesFor(lang);
+  return list.find(v => v.voiceURI === voicePrefs[lang.slice(0, 2)]) || list[0] || null;
+}
+
 function speak(text, lang) {
   if (!("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text.replace(/\//g, ","));
   u.lang = lang;
-  const voice = speechSynthesis.getVoices().find(v => v.lang.replace("_", "-").toLowerCase().startsWith(lang.slice(0, 2)));
-  if (voice) u.voice = voice;
+  const voice = pickVoice(lang);
+  if (voice) { u.voice = voice; u.lang = voice.lang; }
+  u.rate = speechRate;
   speechSynthesis.speak(u);
 }
-if ("speechSynthesis" in window) speechSynthesis.getVoices();
+
+function fillVoiceSelect(select, lang) {
+  const list = voicesFor(lang);
+  const chosen = pickVoice(lang);
+  if (!list.length) {
+    select.replaceChildren(el("option", { value: "" }, "Голоса не найдены"));
+    select.disabled = true;
+    return;
+  }
+  select.disabled = false;
+  select.replaceChildren(...list.map(v => {
+    const option = el("option", { value: v.voiceURI }, `${v.name} (${v.lang.replace("_", "-")})`);
+    if (chosen && v.voiceURI === chosen.voiceURI) option.selected = true;
+    return option;
+  }));
+}
+
+function fillVoices() {
+  fillVoiceSelect($("voice-en"), "en-US");
+  fillVoiceSelect($("voice-de"), "de-DE");
+  $("rate").value = String(speechRate);
+  $("rate-value").textContent = `${speechRate.toFixed(2).replace(".", ",")}×`;
+}
+
+if ("speechSynthesis" in window) {
+  speechSynthesis.getVoices();
+  speechSynthesis.addEventListener("voiceschanged", () => { if ($("settings").open) fillVoices(); });
+}
 
 /* ---------- Карточки ---------- */
 function next() {
@@ -646,6 +727,7 @@ function openSettings() {
   $("updated-text").textContent = updated
     ? `Последнее обновление: ${new Date(updated).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}`
     : "";
+  fillVoices();
   $("settings").showModal();
 }
 
@@ -675,6 +757,26 @@ $("only-unknown").addEventListener("change", e => {
   next();
   renderStatus();
 });
+$("test-en").innerHTML = SPEAKER_SVG;
+$("test-de").innerHTML = SPEAKER_SVG;
+$("test-en").addEventListener("click", () => speak(SAMPLES.en, "en-US"));
+$("test-de").addEventListener("click", () => speak(SAMPLES.de, "de-DE"));
+$("voice-en").addEventListener("change", e => {
+  voicePrefs.en = e.target.value;
+  storage.set(KEYS.voiceEN, voicePrefs.en);
+  speak(SAMPLES.en, "en-US");
+});
+$("voice-de").addEventListener("change", e => {
+  voicePrefs.de = e.target.value;
+  storage.set(KEYS.voiceDE, voicePrefs.de);
+  speak(SAMPLES.de, "de-DE");
+});
+$("rate").addEventListener("input", e => {
+  speechRate = Number(e.target.value) || 0.95;
+  storage.set(KEYS.rate, String(speechRate));
+  $("rate-value").textContent = `${speechRate.toFixed(2).replace(".", ",")}×`;
+});
+$("rate").addEventListener("change", () => speak(SAMPLES.en, "en-US"));
 $("settings").addEventListener("click", e => { if (e.target === $("settings")) $("settings").close(); });
 
 /* ---------- События ---------- */
