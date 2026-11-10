@@ -706,7 +706,7 @@
     <input class="range" type="range" id="rate" min="0.6" max="1.2" step="0.05">
     <p class="hint">Голоса с пометкой Enhanced или Premium звучат естественнее. Скачать их можно на iPhone: Настройки → Универсальный доступ → Устный контент → Голоса.</p>
     <p class="hint" id="updated-text"></p>
-    <p class="hint" id="version-text">Версия 21</p>
+    <p class="hint" id="version-text">Версия 22</p>
     <div class="sheet-actions">
       <button type="button" class="btn primary" id="save-btn">Сохранить и загрузить</button>
       <button type="button" class="btn secondary" id="close-btn">Закрыть</button>
@@ -723,7 +723,7 @@
    Если репозиторий публичный, лучше оставить пустой и ввести ссылку в приложении. */
 const DEFAULT_SHEET_URL = "";
 
-const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed", images: "wc.images", imageSource: "wc.imageSource", pics: "wc.pics", theme: "wc.theme", history: "wc.history", goal: "wc.goal", cardMode: "wc.cardMode", learnedOn: "wc.learnedOn", story: "wc.story", storyLang: "wc.storyLang", geminiKey: "wc.geminiKey", source: "wc.source", packs: "wc.packs" };
+const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed", images: "wc.images", imageSource: "wc.imageSource", pics: "wc.pics", theme: "wc.theme", history: "wc.history", goal: "wc.goal", cardMode: "wc.cardMode", learnedOn: "wc.learnedOn", story: "wc.story", storyLang: "wc.storyLang", geminiKey: "wc.geminiKey", geminiModel: "wc.geminiModel", source: "wc.source", packs: "wc.packs" };
 const AUTO_REFRESH_MS = 10 * 60 * 1000;
 
 const storage = {
@@ -1901,7 +1901,11 @@ function openPacks() {
   $("packs-dialog").showModal();
 }
 $("packs-btn").addEventListener("click", openPacks);
-$("gemini-key").addEventListener("change", e => storage.set(KEYS.geminiKey, e.target.value.trim()));
+$("gemini-key").addEventListener("change", e => {
+  storage.set(KEYS.geminiKey, e.target.value.trim());
+  geminiModels = null;
+  storage.set(KEYS.geminiModel, "");
+});
 $("packs-all").addEventListener("click", () => {
   selectedPacks = allPacks().map(p => p.id);
   storage.set(KEYS.packs, JSON.stringify(selectedPacks));
@@ -2008,33 +2012,90 @@ async function callStoryModel(system, prompt) {
   return key ? callGemini(key, system, prompt) : callPollinations(system, prompt);
 }
 
-// Google Gemini: бесплатный ключ из aistudio.google.com, хранится только на этом устройстве
-async function callGemini(key, system, prompt) {
-  let lastError = new Error("модель Gemini не найдена");
-  for (const model of ["gemini-flash-latest", "gemini-2.5-flash"]) {
-    const t = withTimeout(45000);
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.9 },
-      }),
-      signal: t.signal,
+// Google Gemini: бесплатный ключ из aistudio.google.com, хранится только на этом устройстве.
+// Названия моделей у Google меняются, поэтому список доступных берётся у самого Google,
+// а первыми пробуются быстрые Flash-Lite (они реже перегружены).
+let geminiModels = null;
+async function geminiModelList(key) {
+  if (geminiModels) return geminiModels;
+  const preferred = ["gemini-flash-lite-latest", "gemini-flash-latest"];
+  let listed = [];
+  try {
+    const t = withTimeout(8000);
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", {
+      headers: { "x-goog-api-key": key }, signal: t.signal,
     }).finally(t.done);
-    if (res.status === 404) continue;
     if (res.status === 400 || res.status === 401 || res.status === 403) {
-      throw new Error("ключ Gemini не подошёл, проверьте его в настройках");
+      throw Object.assign(new Error("ключ Gemini не подошёл, проверьте его в настройках"), { fatal: true });
     }
-    if (res.status === 429) throw new Error("лимит бесплатного Gemini, попробуйте через минуту");
-    if (!res.ok) { lastError = new Error(`Gemini ответил ${res.status}`); continue; }
+    if (res.ok) {
+      const data = await res.json();
+      const version = n => Number((n.match(/gemini-(\d+(?:\.\d+)?)/) || [0, 0])[1]);
+      listed = (data.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+        .map(m => String(m.name || "").replace(/^models\//, ""))
+        .filter(n => /^gemini-.*flash/.test(n) && !/image|tts|audio|live|embed|vision|exp/.test(n))
+        .sort((a, b) =>
+          (/lite/.test(b) - /lite/.test(a)) ||          // сначала Lite
+          (/preview/.test(a) - /preview/.test(b)) ||    // потом стабильные
+          (version(b) - version(a)));                   // новее — выше
+    }
+  } catch (e) {
+    if (e.fatal) throw e;
+  }
+  const saved = storage.get(KEYS.geminiModel, "");
+  geminiModels = [...new Set([saved, ...preferred, ...listed].filter(Boolean))].slice(0, 6);
+  return geminiModels;
+}
+
+async function callGemini(key, system, prompt) {
+  const models = await geminiModelList(key);
+  let lastError = new Error("Gemini сейчас недоступен");
+  for (const model of models) {
+    const t = withTimeout(30000);
+    let res;
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json", temperature: 0.9 },
+        }),
+        signal: t.signal,
+      });
+    } catch (e) {
+      lastError = new Error(e && e.name === "AbortError" ? "Gemini слишком долго не отвечает" : "нет связи с Gemini");
+      continue; // пробуем следующую модель
+    } finally {
+      t.done();
+    }
+    if (res.status === 400 || res.status === 401 || res.status === 403) {
+      const body = await res.text().catch(() => "");
+      if (/api key|API_KEY|permission|PERMISSION/i.test(body) || res.status !== 400) {
+        throw new Error("ключ Gemini не подошёл, проверьте его в настройках");
+      }
+      lastError = new Error("Gemini не принял запрос");
+      continue;
+    }
+    if (!res.ok) {
+      // 404 — модели больше нет, 429 — лимит этой модели, 500/503 — перегрузка: пробуем следующую
+      lastError = new Error(res.status === 429 ? "лимит бесплатного Gemini, попробуйте через минуту"
+        : res.status === 503 ? "Gemini сейчас перегружен, попробуйте через минуту"
+        : `Gemini ответил ${res.status}`);
+      continue;
+    }
     const data = await res.json();
     const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
-    const text = parts.map(p => p.text || "").join("");
-    if (text) return text;
+    const text = parts.filter(p => !p.thought).map(p => p.text || "").join("");
+    if (text) {
+      storage.set(KEYS.geminiModel, model); // в следующий раз начнём с рабочей модели
+      return text;
+    }
     lastError = new Error("Gemini вернул пустой ответ");
   }
+  geminiModels = null; // в следующий раз список обновится
   throw lastError;
 }
 

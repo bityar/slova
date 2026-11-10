@@ -1,6 +1,6 @@
 // Кэш приложения, чтобы оно открывалось без интернета.
 // После изменения index.html увеличьте номер версии.
-const CACHE = "slova-v21";
+const CACHE = "slova-v22";
 const IMAGE_CACHE = "slova-images"; // картинки к словам хранятся отдельно и не сбрасываются при обновлении
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
 
