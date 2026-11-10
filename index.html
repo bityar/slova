@@ -87,9 +87,11 @@
     flex: 1;
     border: 0;
     background: transparent;
-    padding: 8px 12px;
+    padding: 8px 4px;
     border-radius: 9px;
     font-weight: 600;
+    font-size: 15px;
+    white-space: nowrap;
     color: var(--muted);
   }
   .seg button[aria-selected="true"] {
@@ -176,6 +178,9 @@
   .examples { border-top: 1px solid var(--line); padding-top: 16px; display: grid; gap: 10px; }
   .example { margin: 0; font-family: var(--read); font-style: italic; font-size: 1.05rem; line-height: 1.55; }
   .example.de { color: var(--muted); }
+  .example-row { display: flex; align-items: flex-start; gap: 10px; }
+  .example-row .example { flex: 1; min-width: 0; }
+  .example-row .speak { margin-top: 1px; }
 
   .speak {
     flex: none;
@@ -316,7 +321,8 @@
 <div class="app">
   <header class="top">
     <div class="seg" role="tablist" aria-label="Режим">
-      <button role="tab" id="tab-study" aria-selected="true" aria-controls="view-study">Карточки</button>
+      <button role="tab" id="tab-study" aria-selected="true" aria-controls="view-study">Учить</button>
+      <button role="tab" id="tab-review" aria-selected="false" aria-controls="view-study">Повтор</button>
       <button role="tab" id="tab-list" aria-selected="false" aria-controls="view-list">Список</button>
     </div>
     <button class="icon-btn" id="refresh-btn" aria-label="Обновить слова из таблицы">
@@ -392,7 +398,7 @@
    Если репозиторий публичный, лучше оставить пустой и ввести ссылку в приложении. */
 const DEFAULT_SHEET_URL = "";
 
-const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate" };
+const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed" };
 const AUTO_REFRESH_MS = 10 * 60 * 1000;
 
 const storage = {
@@ -452,6 +458,8 @@ let sheetUrl = storage.get(KEYS.url, DEFAULT_SHEET_URL) || "";
 let words = parseWords(storage.get(KEYS.csv, ""));
 let known = new Set(safeJSON(storage.get(KEYS.known, "[]"), []));
 let onlyUnknown = storage.get(KEYS.onlyUnknown, "1") === "1";
+let reviewed = safeObject(storage.get(KEYS.reviewed, "{}"));
+let mode = "learn"; // "learn" | "review"
 let current = null;
 let flipped = false;
 let loading = false;
@@ -460,9 +468,24 @@ let errorText = "";
 function safeJSON(text, fallback) {
   try { const v = JSON.parse(text); return Array.isArray(v) ? v : fallback; } catch { return fallback; }
 }
+function safeObject(text) {
+  try { const v = JSON.parse(text); return v && typeof v === "object" && !Array.isArray(v) ? v : {}; } catch { return {}; }
+}
 function saveKnown() { storage.set(KEYS.known, JSON.stringify([...known])); }
+function saveReviewed() { storage.set(KEYS.reviewed, JSON.stringify(reviewed)); }
 function toLearn() { return words.filter(w => !known.has(w.id)); }
-function pool() { return onlyUnknown ? toLearn() : words; }
+// Выученные слова: первыми идут те, что давно не повторяли
+function reviewPool() {
+  return words.filter(w => known.has(w.id)).sort((a, b) => (reviewed[a.id] || 0) - (reviewed[b.id] || 0));
+}
+function pool() {
+  if (mode === "review") return reviewPool();
+  return onlyUnknown ? toLearn() : words;
+}
+function reviewedToday() {
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  return Object.entries(reviewed).filter(([id, t]) => known.has(id) && t >= start.getTime()).length;
+}
 
 /* ---------- DOM-помощники ---------- */
 const $ = id => document.getElementById(id);
@@ -557,8 +580,10 @@ if ("speechSynthesis" in window) {
 
 /* ---------- Карточки ---------- */
 function next() {
-  const candidates = pool().filter(w => !current || w.id !== current.id);
-  const list = candidates.length ? candidates : pool();
+  const all = pool();
+  let candidates = all.filter(w => !current || w.id !== current.id);
+  if (mode === "review") candidates = candidates.slice(0, 5); // случайное из самых давно повторённых
+  const list = candidates.length ? candidates : all;
   current = list.length ? list[Math.floor(Math.random() * list.length)] : null;
   setFlipped(false, true);
   renderStudy();
@@ -601,8 +626,14 @@ function renderCard(w) {
   }
   if (w.exampleEN || w.exampleDE) {
     blocks.push(el("div", { class: "examples" }, [
-      w.exampleEN ? el("p", { class: "example" }, w.exampleEN) : null,
-      w.exampleDE ? el("p", { class: "example de" }, w.exampleDE) : null,
+      w.exampleEN ? el("div", { class: "example-row" }, [
+        el("p", { class: "example" }, w.exampleEN),
+        speakButton(w.exampleEN, "en-US", "Произнести пример по-английски"),
+      ]) : null,
+      w.exampleDE ? el("div", { class: "example-row" }, [
+        el("p", { class: "example de" }, w.exampleDE),
+        speakButton(w.exampleDE, "de-DE", "Произнести пример по-немецки"),
+      ]) : null,
     ]));
   }
   $("back").replaceChildren(...blocks);
@@ -632,11 +663,17 @@ function renderStudy() {
       el("p", {}, "Проверьте ссылку в настройках и нажмите «Обновить»."),
       el("button", { class: "btn secondary", type: "button", onclick: openSettings }, "Открыть настройки")
     );
+  } else if (mode === "review") {
+    empty.replaceChildren(
+      el("h2", {}, "Пока нечего повторять"),
+      el("p", {}, "Отмечайте слова кнопкой «Знаю» на вкладке «Учить», и они появятся здесь."),
+      el("button", { class: "btn secondary", type: "button", onclick: () => showView("learn") }, "Перейти к изучению")
+    );
   } else {
     empty.replaceChildren(
       el("h2", {}, "Все слова выучены"),
-      el("p", {}, "Добавьте новые слова в таблицу или повторите всё заново."),
-      el("button", { class: "btn secondary", type: "button", onclick: () => { onlyUnknown = false; storage.set(KEYS.onlyUnknown, "0"); next(); } }, "Повторить все слова")
+      el("p", {}, "Добавьте новые слова в таблицу или повторите выученные."),
+      el("button", { class: "btn primary", type: "button", onclick: () => showView("review") }, "Перейти к повторению")
     );
   }
 }
@@ -679,7 +716,10 @@ function renderStatus() {
   const total = words.length;
   const learned = total - toLearn().length;
   $("progress-fill").style.width = total ? `${(learned / total) * 100}%` : "0";
-  $("status-text").textContent = total ? `Выучено ${learned} из ${total}` : "";
+  const inReview = mode === "review" && $("view-list").hidden;
+  $("status-text").textContent = !total ? ""
+    : inReview ? `Выучено ${learned}, сегодня повторено ${reviewedToday()}`
+    : `Выучено ${learned} из ${total}`;
   $("error-text").hidden = !errorText;
   $("error-text").textContent = errorText;
   $("refresh-btn").classList.toggle("spinning", loading);
@@ -744,9 +784,11 @@ $("save-btn").addEventListener("click", () => {
 });
 $("close-btn").addEventListener("click", () => $("settings").close());
 $("reset-btn").addEventListener("click", () => {
-  if (!confirm("Сбросить отметки «Знаю» для всех слов?")) return;
+  if (!confirm("Сбросить отметки «Знаю» и историю повторений для всех слов?")) return;
   known.clear();
   saveKnown();
+  reviewed = {};
+  saveReviewed();
   $("settings").close();
   next();
   renderAll();
@@ -784,27 +826,56 @@ $("card").addEventListener("click", () => setFlipped(!flipped));
 $("card").addEventListener("keydown", e => {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFlipped(!flipped); }
 });
-$("again-btn").addEventListener("click", next);
-$("know-btn").addEventListener("click", () => {
-  if (!current) return;
-  known.add(current.id);
-  saveKnown();
+$("again-btn").addEventListener("click", () => {
+  if (mode === "review" && current) {
+    // забытое слово возвращается в изучение
+    known.delete(current.id);
+    delete reviewed[current.id];
+    saveKnown();
+    saveReviewed();
+  }
   next();
   renderStatus();
 });
+$("know-btn").addEventListener("click", () => {
+  if (!current) return;
+  if (mode === "review") {
+    reviewed[current.id] = Date.now();
+    saveReviewed();
+  } else {
+    known.add(current.id);
+    saveKnown();
+  }
+  next();
+  renderStatus();
+});
+function updateButtons() {
+  $("again-btn").textContent = mode === "review" ? "Забыл" : "Ещё учу";
+  $("know-btn").textContent = mode === "review" ? "Помню" : "Знаю";
+}
 $("refresh-btn").addEventListener("click", refresh);
 $("settings-btn").addEventListener("click", openSettings);
 $("search").addEventListener("input", renderList);
 
 function showView(name) {
-  const study = name === "study";
-  $("view-study").hidden = !study;
-  $("view-list").hidden = study;
-  $("tab-study").setAttribute("aria-selected", String(study));
-  $("tab-list").setAttribute("aria-selected", String(!study));
-  if (study) { if (!current) next(); else renderStudy(); } else renderList();
+  const isList = name === "list";
+  $("view-study").hidden = isList;
+  $("view-list").hidden = !isList;
+  for (const [id, view] of [["tab-study", "learn"], ["tab-review", "review"], ["tab-list", "list"]]) {
+    $(id).setAttribute("aria-selected", String(view === name));
+  }
+  if (isList) {
+    renderList();
+  } else {
+    const changed = mode !== name;
+    mode = name;
+    updateButtons();
+    if (changed || !current) next(); else renderStudy();
+  }
+  renderStatus();
 }
-$("tab-study").addEventListener("click", () => showView("study"));
+$("tab-study").addEventListener("click", () => showView("learn"));
+$("tab-review").addEventListener("click", () => showView("review"));
 $("tab-list").addEventListener("click", () => showView("list"));
 
 document.addEventListener("visibilitychange", () => {

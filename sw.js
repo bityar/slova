@@ -1,6 +1,6 @@
 // Кэш оболочки приложения, чтобы оно открывалось без интернета.
 // После изменения index.html увеличьте номер версии.
-const CACHE = "slova-v2";
+const CACHE = "slova-v4";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
 
 self.addEventListener("install", event => {
