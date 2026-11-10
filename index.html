@@ -547,7 +547,7 @@
     <input class="range" type="range" id="rate" min="0.6" max="1.2" step="0.05">
     <p class="hint">Голоса с пометкой Enhanced или Premium звучат естественнее. Скачать их можно на iPhone: Настройки → Универсальный доступ → Устный контент → Голоса.</p>
     <p class="hint" id="updated-text"></p>
-    <p class="hint" id="version-text">Версия 12</p>
+    <p class="hint" id="version-text">Версия 14</p>
     <div class="sheet-actions">
       <button type="button" class="btn primary" id="save-btn">Сохранить и загрузить</button>
       <button type="button" class="btn secondary" id="close-btn">Закрыть</button>
@@ -825,15 +825,40 @@ if ("speechSynthesis" in window) {
 }
 
 /* ---------- Карточки ---------- */
+let upcoming = null;
+function randomFrom(all, excludeId) {
+  let list = all.filter(w => w.id !== excludeId);
+  if (mode === "review") list = list.slice(0, 5); // случайное из самых давно повторённых
+  if (!list.length) list = all;
+  return list.length ? list[Math.floor(Math.random() * list.length)] : null;
+}
+
+// Картинку следующей карточки скачиваем заранее, с паузой из-за лимита бесплатного сервиса
+let preloadTimer = 0, preloadImg = null;
+function schedulePreload() {
+  clearTimeout(preloadTimer);
+  if (!showImages || !upcoming || upcoming.demo) return;
+  const target = upcoming;
+  const wait = Math.max(1500, lastImageRequest + 15500 - Date.now());
+  preloadTimer = setTimeout(() => {
+    if (upcoming !== target) return;
+    lastImageRequest = Date.now();
+    preloadImg = new Image();
+    preloadImg.src = imageUrl(target);
+  }, wait);
+}
+
 function next() {
   const all = pool();
-  let candidates = all.filter(w => !current || w.id !== current.id);
-  if (mode === "review") candidates = candidates.slice(0, 5); // случайное из самых давно повторённых
-  const list = candidates.length ? candidates : all;
-  current = list.length ? list[Math.floor(Math.random() * list.length)] : null;
+  const prevId = current ? current.id : null;
+  const useUpcoming = upcoming && upcoming.id !== prevId && all.some(w => w.id === upcoming.id);
+  current = useUpcoming ? upcoming : randomFrom(all, prevId);
+  upcoming = current ? randomFrom(all, current.id) : null;
+  if (upcoming && current && upcoming.id === current.id) upcoming = null;
   currentFace = current ? pickFace(current) : "word";
   setFlipped(false, true);
   renderStudy();
+  schedulePreload();
 }
 
 function setFlipped(value, instant = false) {
@@ -901,13 +926,19 @@ function seedFor(text) {
 function imageUrl(w) {
   if (/^(https:\/\/|data:image\/)/i.test(w.image)) return w.image; // своя картинка из колонки F
   const word = w.english.replace(/\s+/g, " ");
-  const context = w.exampleEN ? `, as in the sentence "${w.exampleEN}"` : "";
-  const prompt = `Simple flat illustration that clearly shows the meaning of "${word}"${context}. ` +
-    "Friendly, colorful, minimal, plain background, no text, no letters, no words";
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=640&height=400&seed=${seedFor(w.id)}&nologo=true`;
+  // Абстрактное слово плохо рисуется само по себе, а конкретная сцена из примера — хорошо
+  const scene = w.exampleEN
+    ? `a scene that literally shows this situation: "${w.exampleEN}"`
+    : `a scene that literally shows the meaning of the word "${word}"`;
+  const prompt = `Simple flat cartoon illustration, ${scene}. The key idea is "${word}". ` +
+    "Concrete people and objects, one clear focus, light plain background, no text, no letters, no numbers";
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
+    `?width=512&height=320&model=flux&seed=${seedFor(w.id)}&nologo=true`;
 }
+let lastImageRequest = 0;
 function picture(w) {
   const url = imageUrl(w);
+  if (!url.startsWith("data:")) lastImageRequest = Date.now();
   const wrap = el("div", { class: "pic-wrap" });
   const img = el("img", { class: "pic", alt: "", decoding: "async", draggable: "false" });
   let retried = false;
@@ -1316,16 +1347,57 @@ $("modes").addEventListener("click", e => {
     }
   }
 
-  // Палец
+  // Палец. iOS решает, двигать ли экран, по первому движению пальца,
+  // поэтому решение принимается сразу, а не после порога.
+  let moved = false, scrollable = false;
+  function scrollableFace(target) {
+    const face = target.closest && target.closest(".face");
+    return !!face && face.scrollHeight > face.clientHeight + 1;
+  }
+  function show(x) {
+    dx = x;
+    wrap.style.transform = `translateX(${dx}px) rotate(${dx / 22}deg)`;
+    const p = Math.min(1, Math.abs(dx) / THRESHOLD);
+    $("badge-right").style.opacity = String(dx > 0 ? p : 0);
+    $("badge-left").style.opacity = String(dx < 0 ? p : 0);
+  }
   wrap.addEventListener("touchstart", e => {
     if (e.touches.length !== 1) { tracking = false; return; }
     begin(e.touches[0].clientX, e.touches[0].clientY);
+    moved = false;
+    scrollable = scrollableFace(e.target);
   }, { passive: true });
   wrap.addEventListener("touchmove", e => {
-    if (e.touches.length !== 1) return;
-    if (move(e.touches[0].clientX, e.touches[0].clientY)) e.preventDefault(); // экран стоит на месте
+    if (!tracking || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const mx = t.clientX - startX, my = t.clientY - startY;
+    const ax = Math.abs(mx), ay = Math.abs(my);
+    if (ax > 3 || ay > 3) moved = true;
+    if (!swiping) {
+      if (!scrollable) {
+        e.preventDefault();                // карточку нечего прокручивать: экран не двигаем никогда
+        if (ax > 6 && ax > ay) swiping = true; else return;
+      } else {
+        if (ax < 4 && ay < 4) return;
+        if (ax > ay) swiping = true;
+        else { tracking = false; return; } // вертикально — прокрутка длинного оборота
+      }
+    }
+    e.preventDefault();
+    show(mx);
   }, { passive: false });
-  wrap.addEventListener("touchend", () => finish(true));
+  wrap.addEventListener("touchend", e => {
+    if (tracking && !swiping && !moved) {
+      tracking = false;
+      // касание: переворачиваем сами, чтобы двойное касание не увеличивало экран
+      if (!(e.target.closest && e.target.closest("button"))) {
+        e.preventDefault();
+        setFlipped(!flipped);
+      }
+      return;
+    }
+    finish(true);
+  });
   wrap.addEventListener("touchcancel", () => finish(false));
 
   // Мышь (на компьютере)
@@ -1367,6 +1439,7 @@ function showView(name) {
   } else {
     const changed = mode !== name;
     mode = name;
+    if (changed) upcoming = null;
     updateButtons();
     if (changed || !current) next(); else renderStudy();
   }
@@ -1386,11 +1459,16 @@ document.addEventListener("visibilitychange", () => {
 for (const type of ["gesturestart", "gesturechange", "gestureend"]) {
   document.addEventListener(type, e => e.preventDefault(), { passive: false });
 }
+document.addEventListener("touchstart", e => {
+  if (e.touches.length > 1) e.preventDefault(); // без масштабирования двумя пальцами
+}, { passive: false });
 document.addEventListener("touchmove", e => {
-  // два пальца — никогда; один палец — только внутри прокручиваемых областей
-  if (e.touches.length > 1 || !(e.target.closest && e.target.closest(".face, .word-list, dialog"))) {
-    e.preventDefault();
-  }
+  if (e.touches.length > 1) { e.preventDefault(); return; }
+  const t = e.target;
+  if (t.closest && t.closest("input, select, textarea")) return; // ползунок скорости и поля ввода
+  // один палец двигает только то, что действительно прокручивается
+  const area = t.closest && t.closest(".face, .word-list, dialog");
+  if (!area || area.scrollHeight <= area.clientHeight + 1) e.preventDefault();
 }, { passive: false });
 
 /* ---------- Старт ---------- */
