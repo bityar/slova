@@ -482,6 +482,33 @@
   .word-sheet-body .back-head { margin-bottom: 4px; }
   .used-as { margin: 0; font-size: 14px; color: var(--muted); }
 
+  /* Наборы слов */
+  .packs-body { padding: 22px 20px 20px; display: grid; gap: 14px; }
+  .packs-body h2 { margin: 0; font-size: 1.3rem; }
+  .pack-group h3 { margin: 4px 0 8px; font-size: 15px; color: var(--muted); font-weight: 600; }
+  .pack-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pack-chip {
+    border: 0;
+    padding: 9px 12px;
+    border-radius: 12px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink);
+    text-align: left;
+  }
+  .pack-chip span { color: var(--muted); font-size: 13px; margin-left: 4px; }
+  .pack-chip[aria-pressed="true"] {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .pack-tools { display: flex; gap: 8px; }
+  .pack-tools .btn { flex: 1; min-height: 42px; font-size: 15px; border-radius: 12px; }
+  .row-pack { margin: 3px 0 0; font-size: 12px; color: var(--accent); }
+
   /* Настройки */
   dialog {
     overflow-y: auto;
@@ -606,6 +633,19 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<dialog id="packs-dialog" aria-labelledby="packs-title">
+  <div class="packs-body">
+    <h2 id="packs-title">Наборы слов</h2>
+    <p class="hint">Отметьте темы, слова из которых хотите учить. Прогресс по словам сохраняется, даже если снять набор.</p>
+    <div id="packs-list"></div>
+    <div class="pack-tools">
+      <button type="button" class="btn secondary" id="packs-all">Выбрать все</button>
+      <button type="button" class="btn secondary" id="packs-none">Снять все</button>
+    </div>
+    <button type="button" class="btn primary" id="packs-done">Готово</button>
+  </div>
+</dialog>
+
 <dialog id="word-sheet" aria-label="Слово из истории">
   <div class="word-sheet-body" id="word-sheet-body"></div>
 </dialog>
@@ -613,6 +653,13 @@
 <dialog id="settings" aria-labelledby="settings-title">
   <div class="sheet">
     <h2 id="settings-title">Настройки</h2>
+    <label for="word-source">Какие слова учить</label>
+    <select class="select" id="word-source">
+      <option value="own">Мою таблицу</option>
+      <option value="packs">Готовые наборы по темам</option>
+      <option value="both">Мою таблицу и наборы</option>
+    </select>
+    <button type="button" class="btn secondary" id="packs-btn">Выбрать наборы</button>
     <label for="url-input">Ссылка на таблицу</label>
     <textarea id="url-input" rows="3" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?gid=…&amp;single=true&amp;output=csv" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
     <p class="hint">В Google Таблице: Файл → Поделиться → Опубликовать в интернете → лист WORDS → формат CSV → Опубликовать. Скопируйте ссылку сюда.</p>
@@ -656,7 +703,7 @@
     <input class="range" type="range" id="rate" min="0.6" max="1.2" step="0.05">
     <p class="hint">Голоса с пометкой Enhanced или Premium звучат естественнее. Скачать их можно на iPhone: Настройки → Универсальный доступ → Устный контент → Голоса.</p>
     <p class="hint" id="updated-text"></p>
-    <p class="hint" id="version-text">Версия 19</p>
+    <p class="hint" id="version-text">Версия 20</p>
     <div class="sheet-actions">
       <button type="button" class="btn primary" id="save-btn">Сохранить и загрузить</button>
       <button type="button" class="btn secondary" id="close-btn">Закрыть</button>
@@ -665,6 +712,7 @@
   </div>
 </dialog>
 
+<script type="application/json" id="packs-data">{"version":1,"groups":[{"title":"Повседневная жизнь","packs":[{"id":"food","title":"Еда и кухня","words":[["Ingredient","Ингредиент","die Zutat","Mix all the ingredients in a large bowl.","Vermische alle Zutaten in einer großen Schüssel."],["Recipe","Рецепт","das Rezept","My grandmother gave me her secret recipe.","Meine Großmutter hat mir ihr geheimes Rezept gegeben."],["Boil","Варить / кипятить","kochen","Boil the water before you add the pasta.","Koche das Wasser, bevor du die Nudeln hinzufügst."],["Fry","Жарить","braten","She fried the onions in olive oil.","Sie hat die Zwiebeln in Olivenöl gebraten."],["Spicy","Острый","scharf","This curry is too spicy for me.","Dieses Curry ist mir zu scharf."],["Leftovers","Остатки еды","die Reste","We had leftovers from yesterday for lunch.","Zum Mittagessen gab es Reste von gestern."],["Order","Заказывать / заказ","bestellen / die Bestellung","Let's order a pizza tonight.","Lass uns heute Abend eine Pizza bestellen."],["Bill","Счёт","die Rechnung","Could we have the bill, please?","Könnten wir bitte die Rechnung haben?"],["Tip","Чаевые","das Trinkgeld","In Germany, a ten percent tip is common.","In Deutschland ist ein Trinkgeld von zehn Prozent üblich."],["Vegetarian","Вегетарианский","vegetarisch","Do you have any vegetarian dishes?","Haben Sie vegetarische Gerichte?"],["Taste","Пробовать на вкус / вкус","probieren / der Geschmack","Taste the soup and add some salt.","Probier die Suppe und gib etwas Salz dazu."],["Fresh","Свежий","frisch","I buy fresh bread every morning.","Ich kaufe jeden Morgen frisches Brot."],["Portion","Порция","die Portion","The portions in this restaurant are huge.","Die Portionen in diesem Restaurant sind riesig."],["Peel","Чистить (кожуру)","schälen","Peel the potatoes and cut them into cubes.","Schäl die Kartoffeln und schneide sie in Würfel."],["Dessert","Десерт","der Nachtisch","We shared a chocolate cake for dessert.","Zum Nachtisch haben wir uns einen Schokoladenkuchen geteilt."]]},{"id":"shopping","title":"Покупки","words":[["Receipt","Чек","der Kassenbon / die Quittung","Keep the receipt in case you want to return it.","Bewahre den Kassenbon auf, falls du es zurückgeben möchtest."],["Refund","Возврат денег","die Rückerstattung","I asked for a refund because the shoes were broken.","Ich habe um eine Rückerstattung gebeten, weil die Schuhe kaputt waren."],["Discount","Скидка","der Rabatt","Students get a ten percent discount.","Studenten bekommen zehn Prozent Rabatt."],["Bargain","Выгодная покупка","das Schnäppchen","This jacket was a real bargain.","Diese Jacke war ein echtes Schnäppchen."],["Try on","Примерять","anprobieren","Can I try on these jeans?","Kann ich diese Jeans anprobieren?"],["Fitting room","Примерочная","die Umkleidekabine","The fitting rooms are at the back of the store.","Die Umkleidekabinen sind hinten im Laden."],["Checkout","Касса","die Kasse","There was a long queue at the checkout.","An der Kasse gab es eine lange Schlange."],["Afford","Позволить себе (по деньгам)","sich leisten","I can't afford a new car right now.","Ich kann mir gerade kein neues Auto leisten."],["Out of stock","Нет в наличии","ausverkauft / nicht vorrätig","Sorry, this model is out of stock.","Tut mir leid, dieses Modell ist ausverkauft."],["Exchange","Обменять / обмен","umtauschen","Can I exchange this shirt for a bigger size?","Kann ich dieses Hemd gegen eine größere Größe umtauschen?"],["Delivery","Доставка","die Lieferung","Delivery is free for orders over fifty euros.","Die Lieferung ist ab fünfzig Euro kostenlos."],["Cash","Наличные","das Bargeld","Do you accept cash or only cards?","Nehmen Sie Bargeld oder nur Karten?"],["Price tag","Ценник","das Preisschild","I forgot to remove the price tag.","Ich habe vergessen, das Preisschild zu entfernen."],["Grocery store","Продуктовый магазин","der Lebensmittelladen","The grocery store closes at eight.","Der Lebensmittelladen schließt um acht."],["Shopping cart","Тележка / корзина","der Einkaufswagen","I left my phone in the shopping cart.","Ich habe mein Handy im Einkaufswagen liegen lassen."]]},{"id":"transport","title":"Транспорт и дорога","words":[["Commute","Дорога на работу / ездить на работу","der Arbeitsweg / pendeln","My commute takes about forty minutes.","Mein Arbeitsweg dauert etwa vierzig Minuten."],["Delay","Задержка","die Verspätung","The train has a delay of fifteen minutes.","Der Zug hat fünfzehn Minuten Verspätung."],["Platform","Платформа","das Gleis / der Bahnsteig","The train leaves from platform three.","Der Zug fährt von Gleis drei ab."],["Traffic jam","Пробка","der Stau","We were stuck in a traffic jam for an hour.","Wir standen eine Stunde im Stau."],["Fare","Стоимость проезда","der Fahrpreis","Bus fares went up again this year.","Die Fahrpreise für den Bus sind dieses Jahr wieder gestiegen."],["Change trains","Пересаживаться (на поезд)","umsteigen","You have to change trains in Cologne.","Du musst in Köln umsteigen."],["Driving licence","Водительские права","der Führerschein","I got my driving licence when I was eighteen.","Ich habe meinen Führerschein mit achtzehn gemacht."],["Pedestrian","Пешеход","der Fußgänger","This street is only for pedestrians.","Diese Straße ist nur für Fußgänger."],["Parking space","Парковочное место","der Parkplatz","It's hard to find a parking space in the city centre.","Im Stadtzentrum ist es schwer, einen Parkplatz zu finden."],["Departure","Отправление","die Abfahrt / der Abflug","Please check the departure time on the board.","Bitte prüfe die Abfahrtszeit auf der Anzeigetafel."],["Miss","Опоздать (на транспорт) / пропустить","verpassen","Hurry up, or we'll miss the bus!","Beeil dich, sonst verpassen wir den Bus!"],["Ticket inspector","Контролёр","der Fahrkartenkontrolleur","The ticket inspector asked to see my ticket.","Der Fahrkartenkontrolleur wollte meine Fahrkarte sehen."],["Speed limit","Ограничение скорости","die Geschwindigkeitsbegrenzung","The speed limit here is thirty.","Hier gilt eine Geschwindigkeitsbegrenzung von dreißig."],["Breakdown","Поломка (машины)","die Panne","We had a breakdown on the motorway.","Wir hatten eine Panne auf der Autobahn."],["Rush hour","Час пик","der Berufsverkehr","Avoid the trains during rush hour.","Meide die Züge im Berufsverkehr."]]},{"id":"home","title":"Дом и быт","words":[["Rent","Аренда / снимать (жильё)","die Miete / mieten","The rent in this area is very high.","Die Miete in dieser Gegend ist sehr hoch."],["Landlord","Арендодатель","der Vermieter","I called the landlord about the broken heater.","Ich habe den Vermieter wegen der kaputten Heizung angerufen."],["Neighbour","Сосед","der Nachbar","Our neighbours are very friendly.","Unsere Nachbarn sind sehr freundlich."],["Laundry","Стирка / бельё","die Wäsche","I do the laundry on Sundays.","Ich mache sonntags die Wäsche."],["Tidy","Убирать / опрятный","aufräumen / ordentlich","Please tidy your room before the guests arrive.","Bitte räum dein Zimmer auf, bevor die Gäste kommen."],["Dishwasher","Посудомоечная машина","die Spülmaschine","Can you empty the dishwasher?","Kannst du die Spülmaschine ausräumen?"],["Bills","Счета (за коммуналку)","die Rechnungen / die Nebenkosten","Electricity bills are much higher this winter.","Die Stromrechnungen sind diesen Winter viel höher."],["Move","Переезжать","umziehen","We're moving to a bigger flat next month.","Wir ziehen nächsten Monat in eine größere Wohnung."],["Furniture","Мебель","die Möbel","We bought new furniture for the living room.","Wir haben neue Möbel für das Wohnzimmer gekauft."],["Leak","Протечка / протекать","das Leck / undicht sein","There's a leak under the kitchen sink.","Unter dem Spülbecken gibt es ein Leck."],["Repair","Ремонтировать / ремонт","reparieren / die Reparatur","Can you repair the washing machine?","Kannst du die Waschmaschine reparieren?"],["Rubbish","Мусор","der Müll","Don't forget to take out the rubbish.","Vergiss nicht, den Müll rauszubringen."],["Heating","Отопление","die Heizung","The heating doesn't work in the bedroom.","Die Heizung funktioniert im Schlafzimmer nicht."],["Spare key","Запасной ключ","der Ersatzschlüssel","I gave a spare key to my neighbour.","Ich habe meinem Nachbarn einen Ersatzschlüssel gegeben."],["Chores","Домашние дела","die Hausarbeit","We share the chores equally.","Wir teilen uns die Hausarbeit gleichmäßig."]]},{"id":"health","title":"Здоровье","words":[["Appointment","Запись (к врачу) / встреча","der Termin","I have a doctor's appointment at ten.","Ich habe um zehn einen Arzttermin."],["Prescription","Рецепт (врача)","das Rezept","The doctor gave me a prescription for antibiotics.","Der Arzt hat mir ein Rezept für Antibiotika gegeben."],["Symptom","Симптом","das Symptom","What symptoms do you have?","Welche Symptome haben Sie?"],["Sore throat","Боль в горле","die Halsschmerzen","I have a sore throat and a slight fever.","Ich habe Halsschmerzen und leichtes Fieber."],["Recover","Выздоравливать / восстанавливаться","sich erholen","It took me two weeks to recover from the flu.","Ich habe zwei Wochen gebraucht, um mich von der Grippe zu erholen."],["Sick leave","Больничный","die Krankschreibung","I'm on sick leave until Friday.","Ich bin bis Freitag krankgeschrieben."],["Painkiller","Обезболивающее","das Schmerzmittel","Take a painkiller if the headache gets worse.","Nimm ein Schmerzmittel, wenn die Kopfschmerzen schlimmer werden."],["Injury","Травма","die Verletzung","He had a knee injury and couldn't play.","Er hatte eine Knieverletzung und konnte nicht spielen."],["Pharmacy","Аптека","die Apotheke","The pharmacy on the corner is open until midnight.","Die Apotheke an der Ecke hat bis Mitternacht geöffnet."],["Exhausted","Измотанный","erschöpft","I was exhausted after the long shift.","Nach der langen Schicht war ich erschöpft."],["Allergy","Аллергия","die Allergie","I have an allergy to nuts.","Ich habe eine Nussallergie."],["Check-up","Медосмотр","die Vorsorgeuntersuchung","I go for a check-up once a year.","Ich gehe einmal im Jahr zur Vorsorgeuntersuchung."],["Healthy","Здоровый","gesund","Try to eat healthy food and sleep enough.","Versuche, gesund zu essen und genug zu schlafen."],["Pain","Боль","der Schmerz","I feel a sharp pain in my back.","Ich spüre einen stechenden Schmerz im Rücken."],["Insurance","Страховка","die Versicherung","Does your health insurance cover this treatment?","Übernimmt deine Krankenversicherung diese Behandlung?"]]},{"id":"travel","title":"Путешествия","words":[["Luggage","Багаж","das Gepäck","Our luggage was lost at the airport.","Unser Gepäck ist am Flughafen verloren gegangen."],["Boarding pass","Посадочный талон","die Bordkarte","Please show your boarding pass at the gate.","Bitte zeigen Sie Ihre Bordkarte am Gate."],["Book","Бронировать","buchen","We booked a hotel near the beach.","Wir haben ein Hotel in der Nähe des Strandes gebucht."],["Accommodation","Жильё (в поездке)","die Unterkunft","Accommodation in the city centre is expensive.","Unterkünfte im Stadtzentrum sind teuer."],["Sightseeing","Осмотр достопримечательностей","die Besichtigung","We spent the whole day sightseeing.","Wir haben den ganzen Tag Sehenswürdigkeiten besichtigt."],["Passport","Паспорт","der Reisepass","Don't forget your passport!","Vergiss deinen Reisepass nicht!"],["Destination","Пункт назначения","das Reiseziel","Lisbon is a popular destination in spring.","Lissabon ist im Frühling ein beliebtes Reiseziel."],["Jet lag","Усталость от смены часовых поясов","der Jetlag","I still have jet lag after the flight.","Nach dem Flug habe ich immer noch Jetlag."],["Itinerary","Маршрут поездки","der Reiseplan","Our itinerary includes three cities.","Unser Reiseplan umfasst drei Städte."],["Souvenir","Сувенир","das Andenken","I bought a small souvenir for my mum.","Ich habe ein kleines Andenken für meine Mutter gekauft."],["Cancel","Отменять","stornieren / absagen","Our flight was cancelled because of the storm.","Unser Flug wurde wegen des Sturms gestrichen."],["Abroad","За границей","im Ausland","Have you ever lived abroad?","Hast du schon einmal im Ausland gelebt?"],["Check in","Регистрироваться / заселяться","einchecken","We can check in at the hotel after two.","Wir können ab zwei Uhr im Hotel einchecken."],["Guide","Гид / путеводитель","der Reiseführer","Our guide showed us the old town.","Unser Reiseführer hat uns die Altstadt gezeigt."],["Currency","Валюта","die Währung","What currency do they use in Switzerland?","Welche Währung benutzt man in der Schweiz?"]]},{"id":"nature","title":"Погода и природа","words":[["Forecast","Прогноз","die Vorhersage","The forecast says it will rain tomorrow.","Laut Vorhersage regnet es morgen."],["Shower","Ливень (кратковременный)","der Schauer","There might be a few showers in the afternoon.","Am Nachmittag kann es ein paar Schauer geben."],["Humid","Влажный","schwül / feucht","It's hot and humid in the summer.","Im Sommer ist es heiß und schwül."],["Freezing","Ледяной / очень холодно","eiskalt","It's freezing outside, wear a hat.","Draußen ist es eiskalt, zieh eine Mütze an."],["Thunderstorm","Гроза","das Gewitter","A thunderstorm woke us up last night.","Ein Gewitter hat uns letzte Nacht geweckt."],["Breeze","Лёгкий ветерок","die Brise","A cool breeze came from the sea.","Eine kühle Brise kam vom Meer."],["Sunrise","Рассвет","der Sonnenaufgang","We got up early to watch the sunrise.","Wir sind früh aufgestanden, um den Sonnenaufgang zu sehen."],["Flood","Наводнение","die Überschwemmung","The flood destroyed many houses.","Die Überschwemmung hat viele Häuser zerstört."],["Drought","Засуха","die Dürre","The drought lasted the whole summer.","Die Dürre dauerte den ganzen Sommer."],["Climate","Климат","das Klima","The climate here is mild.","Das Klima hier ist mild."],["Slippery","Скользкий","glatt / rutschig","Be careful, the roads are slippery.","Sei vorsichtig, die Straßen sind glatt."],["Fog","Туман","der Nebel","The fog was so thick we couldn't see the road.","Der Nebel war so dicht, dass wir die Straße nicht sehen konnten."],["Coast","Побережье","die Küste","We drove along the coast.","Wir sind an der Küste entlanggefahren."],["Hike","Пеший поход / ходить в поход","die Wanderung / wandern","We went on a long hike in the mountains.","Wir haben eine lange Wanderung in den Bergen gemacht."],["Environment","Окружающая среда","die Umwelt","We should protect the environment.","Wir sollten die Umwelt schützen."]]},{"id":"feelings","title":"Чувства и характер","words":[["Annoyed","Раздражённый","genervt","I was annoyed because he was late again.","Ich war genervt, weil er schon wieder zu spät kam."],["Grateful","Благодарный","dankbar","I'm grateful for your help.","Ich bin dir dankbar für deine Hilfe."],["Confident","Уверенный","zuversichtlich / selbstbewusst","She feels confident before the exam.","Sie fühlt sich vor der Prüfung zuversichtlich."],["Embarrassed","Смущённый","verlegen","I was embarrassed when I forgot his name.","Es war mir peinlich, als ich seinen Namen vergessen habe."],["Disappointed","Разочарованный","enttäuscht","We were disappointed with the result.","Wir waren vom Ergebnis enttäuscht."],["Relieved","Испытывающий облегчение","erleichtert","I was relieved when the test passed.","Ich war erleichtert, als der Test bestanden war."],["Anxious","Тревожный","ängstlich / besorgt","He gets anxious before flights.","Vor Flügen wird er immer ängstlich."],["Patient","Терпеливый","geduldig","Be patient, the results will come.","Sei geduldig, die Ergebnisse kommen."],["Reliable","Надёжный","zuverlässig","She is a very reliable colleague.","Sie ist eine sehr zuverlässige Kollegin."],["Stubborn","Упрямый","stur","My brother is too stubborn to admit he's wrong.","Mein Bruder ist zu stur, um zuzugeben, dass er falschliegt."],["Curious","Любопытный","neugierig","Children are naturally curious.","Kinder sind von Natur aus neugierig."],["Overwhelmed","Перегруженный / ошеломлённый","überfordert","I felt overwhelmed by all the new tasks.","Ich fühlte mich von all den neuen Aufgaben überfordert."],["Proud","Гордый","stolz","I'm proud of what we built.","Ich bin stolz auf das, was wir gebaut haben."],["Jealous","Ревнивый / завидующий","eifersüchtig / neidisch","He was jealous of his friend's success.","Er war neidisch auf den Erfolg seines Freundes."],["Mood","Настроение","die Laune / die Stimmung","She's in a good mood today.","Sie hat heute gute Laune."]]}]},{"title":"Работа и карьера","packs":[{"id":"office","title":"Офис и встречи","words":[["Agenda","Повестка дня","die Tagesordnung","Let's look at the agenda for today's meeting.","Schauen wir uns die Tagesordnung für das heutige Meeting an."],["Deadline","Крайний срок","die Frist / die Deadline","The deadline for the report is Friday.","Die Frist für den Bericht ist Freitag."],["Schedule","Назначить / расписание","ansetzen / der Zeitplan","Can we schedule a call for Tuesday?","Können wir für Dienstag einen Anruf ansetzen?"],["Postpone","Откладывать","verschieben","We had to postpone the meeting.","Wir mussten das Meeting verschieben."],["Attend","Присутствовать / посещать","teilnehmen","Ten people attended the workshop.","Zehn Personen haben am Workshop teilgenommen."],["Follow up","Вернуться к вопросу / уточнить","nachfassen / sich noch einmal melden","I'll follow up with the client tomorrow.","Ich melde mich morgen noch einmal beim Kunden."],["Minutes","Протокол (встречи)","das Protokoll","Who is taking the minutes today?","Wer schreibt heute das Protokoll?"],["Colleague","Коллега","der Kollege / die Kollegin","My colleague helped me with the presentation.","Mein Kollege hat mir bei der Präsentation geholfen."],["Approve","Одобрять","genehmigen / freigeben","The manager approved the budget.","Der Manager hat das Budget genehmigt."],["Workload","Рабочая нагрузка","die Arbeitsbelastung","My workload is very high this month.","Meine Arbeitsbelastung ist diesen Monat sehr hoch."],["Priority","Приоритет","die Priorität","This task is our top priority.","Diese Aufgabe hat für uns höchste Priorität."],["Remote","Удалённый / удалённо","im Homeoffice / remote","I work remotely three days a week.","Ich arbeite drei Tage pro Woche im Homeoffice."],["Feedback","Обратная связь","die Rückmeldung / das Feedback","Thanks for your feedback on my draft.","Danke für deine Rückmeldung zu meinem Entwurf."],["Reschedule","Перенести (на другое время)","verlegen","Can we reschedule our call to Thursday?","Können wir unseren Anruf auf Donnerstag verlegen?"],["Outcome","Итог / результат","das Ergebnis","What was the outcome of the meeting?","Was war das Ergebnis des Meetings?"]]},{"id":"it","title":"IT и разработка","words":[["Deploy","Развёртывать (выкатывать)","deployen / bereitstellen","We deploy a new version every Friday.","Wir deployen jeden Freitag eine neue Version."],["Release","Релиз / выпускать","das Release / veröffentlichen","The next release includes dark mode.","Das nächste Release enthält einen Dark Mode."],["Feature","Функция / фича","die Funktion / das Feature","Users asked for a new export feature.","Nutzer haben sich eine neue Exportfunktion gewünscht."],["Database","База данных","die Datenbank","All orders are stored in the database.","Alle Bestellungen werden in der Datenbank gespeichert."],["Update","Обновление / обновлять","das Update / aktualisieren","Please update the app to the latest version.","Bitte aktualisiere die App auf die neueste Version."],["Rollback","Откат","das Rollback","We did a rollback after the release broke the login.","Wir haben ein Rollback gemacht, nachdem das Release den Login kaputt gemacht hatte."],["Merge","Слить (ветки)","mergen / zusammenführen","Don't merge the branch before the review.","Merge den Branch nicht vor dem Review."],["Branch","Ветка","der Branch","I created a new branch for the fix.","Ich habe einen neuen Branch für den Fix erstellt."],["Requirement","Требование","die Anforderung","The requirements changed during the sprint.","Die Anforderungen haben sich während des Sprints geändert."],["Outage","Сбой (недоступность сервиса)","der Ausfall","The outage lasted two hours.","Der Ausfall dauerte zwei Stunden."],["Bottleneck","Узкое место","der Engpass","The database is the main bottleneck.","Die Datenbank ist der größte Engpass."],["Scalable","Масштабируемый","skalierbar","We need a scalable solution.","Wir brauchen eine skalierbare Lösung."],["Permission","Разрешение / права доступа","die Berechtigung","You don't have permission to edit this file.","Du hast keine Berechtigung, diese Datei zu bearbeiten."],["Workaround","Обходное решение","die Übergangslösung / der Workaround","Until the fix is ready, we use a workaround.","Bis der Fix fertig ist, nutzen wir eine Übergangslösung."],["Backend","Серверная часть","das Backend","The backend team fixed the API.","Das Backend-Team hat die API repariert."]]},{"id":"qa","title":"Тестирование и QA","words":[["Bug","Баг / ошибка","der Fehler / der Bug","I found a bug in the checkout flow.","Ich habe einen Fehler im Bezahlvorgang gefunden."],["Reproduce","Воспроизводить","reproduzieren","I can't reproduce the issue on my phone.","Ich kann das Problem auf meinem Handy nicht reproduzieren."],["Steps to reproduce","Шаги воспроизведения","die Schritte zur Reproduktion","Please add steps to reproduce to the ticket.","Bitte füge die Schritte zur Reproduktion zum Ticket hinzu."],["Expected result","Ожидаемый результат","das erwartete Ergebnis","The expected result is a success message.","Das erwartete Ergebnis ist eine Erfolgsmeldung."],["Regression","Регрессия","die Regression","This bug is a regression from the last release.","Dieser Fehler ist eine Regression aus dem letzten Release."],["Test case","Тест-кейс","der Testfall","I wrote ten new test cases for the login page.","Ich habe zehn neue Testfälle für die Login-Seite geschrieben."],["Severity","Серьёзность","der Schweregrad","We set the severity to high.","Wir haben den Schweregrad auf hoch gesetzt."],["Edge case","Пограничный случай","der Grenzfall","Empty input is an important edge case.","Eine leere Eingabe ist ein wichtiger Grenzfall."],["Flaky","Нестабильный (о тесте)","instabil / flaky","This test is flaky and fails randomly.","Dieser Test ist instabil und schlägt zufällig fehl."],["Coverage","Покрытие (тестами)","die Abdeckung","Our test coverage is about seventy percent.","Unsere Testabdeckung liegt bei etwa siebzig Prozent."],["Verify","Проверять / подтверждать","überprüfen / verifizieren","Please verify the fix on staging.","Bitte überprüfe den Fix auf Staging."],["Crash","Падать (о приложении) / падение","abstürzen / der Absturz","The app crashes when I upload a large file.","Die App stürzt ab, wenn ich eine große Datei hochlade."],["Acceptance criteria","Критерии приёмки","die Akzeptanzkriterien","The story is missing acceptance criteria.","In der Story fehlen die Akzeptanzkriterien."],["Sign off","Утвердить / дать добро","freigeben / abnehmen","QA has to sign off before the release.","Die QA muss vor dem Release freigeben."],["Smoke test","Смоук-тест (быстрая проверка)","der Smoke-Test","We run a smoke test after every deployment.","Nach jedem Deployment führen wir einen Smoke-Test durch."]]},{"id":"sales","title":"Продажи и клиенты","words":[["Customer","Клиент","der Kunde","The customer wants a demo next week.","Der Kunde möchte nächste Woche eine Demo."],["Lead","Потенциальный клиент (лид)","der Interessent / der Lead","We got twenty new leads from the webinar.","Wir haben zwanzig neue Interessenten aus dem Webinar gewonnen."],["Quote","Коммерческое предложение / смета","das Angebot","Can you send me a quote for fifty licences?","Können Sie mir ein Angebot für fünfzig Lizenzen schicken?"],["Negotiate","Вести переговоры","verhandeln","We negotiated a better price.","Wir haben einen besseren Preis verhandelt."],["Contract","Договор","der Vertrag","They signed the contract yesterday.","Sie haben gestern den Vertrag unterschrieben."],["Complaint","Жалоба","die Beschwerde","We received a complaint about the delivery.","Wir haben eine Beschwerde über die Lieferung erhalten."],["Satisfied","Довольный","zufrieden","Most customers are satisfied with the support.","Die meisten Kunden sind mit dem Support zufrieden."],["Target","Цель / план (продаж)","das Ziel / die Zielvorgabe","We reached our sales target in March.","Wir haben unser Umsatzziel im März erreicht."],["Pitch","Презентация (для продажи)","der Pitch","Her pitch convinced the investors.","Ihr Pitch hat die Investoren überzeugt."],["Competitor","Конкурент","der Wettbewerber","Our competitor lowered their prices.","Unser Wettbewerber hat seine Preise gesenkt."],["Renewal","Продление","die Verlängerung","The contract renewal is due in June.","Die Vertragsverlängerung steht im Juni an."],["Upsell","Допродажа / продать дороже","zusätzlich verkaufen / der Upsell","We can upsell the premium plan to them.","Wir können ihnen den Premium-Tarif zusätzlich verkaufen."],["Trial","Пробный период","die Testphase","The free trial lasts fourteen days.","Die kostenlose Testphase dauert vierzehn Tage."],["Reach out","Связаться","Kontakt aufnehmen / sich melden","I'll reach out to the customer this afternoon.","Ich nehme heute Nachmittag Kontakt mit dem Kunden auf."],["Revenue","Выручка","der Umsatz","Our revenue grew by ten percent.","Unser Umsatz ist um zehn Prozent gestiegen."]]},{"id":"finance","title":"Деньги и финансы","words":[["Budget","Бюджет","das Budget","We have a limited budget this year.","Wir haben dieses Jahr ein begrenztes Budget."],["Invoice","Счёт (на оплату)","die Rechnung","Please send the invoice by email.","Bitte schicken Sie die Rechnung per E-Mail."],["Expense","Расход","die Ausgabe / die Kosten","Travel expenses are paid by the company.","Reisekosten werden von der Firma übernommen."],["Salary","Зарплата (оклад)","das Gehalt","She asked for a higher salary.","Sie hat um ein höheres Gehalt gebeten."],["Tax","Налог","die Steuer","Prices include tax.","Die Preise enthalten die Steuer."],["Savings","Сбережения","die Ersparnisse","We used our savings to buy a car.","Wir haben unsere Ersparnisse für ein Auto verwendet."],["Loan","Кредит / заём","der Kredit / das Darlehen","They took out a loan to buy the house.","Sie haben einen Kredit aufgenommen, um das Haus zu kaufen."],["Debt","Долг","die Schulden","He paid off all his debt.","Er hat alle seine Schulden abbezahlt."],["Transfer","Перевод (денег) / переводить","die Überweisung / überweisen","I made a bank transfer this morning.","Ich habe heute Morgen eine Überweisung gemacht."],["Withdraw","Снимать (деньги)","abheben","I need to withdraw some cash.","Ich muss etwas Bargeld abheben."],["Profit","Прибыль","der Gewinn","The company made a profit last year.","Das Unternehmen hat letztes Jahr Gewinn gemacht."],["Investment","Инвестиция","die Investition","Education is a good investment.","Bildung ist eine gute Investition."],["Overdue","Просроченный","überfällig","This invoice is two weeks overdue.","Diese Rechnung ist seit zwei Wochen überfällig."],["Fee","Плата / сбор","die Gebühr","There is no fee for the first transfer.","Für die erste Überweisung fällt keine Gebühr an."],["Bank account","Банковский счёт","das Bankkonto","I opened a new bank account.","Ich habe ein neues Bankkonto eröffnet."]]},{"id":"career","title":"Карьера и собеседования","words":[["Apply","Подавать заявку / откликаться","sich bewerben","I applied for a job at a startup.","Ich habe mich bei einem Start-up beworben."],["Interview","Собеседование","das Vorstellungsgespräch","The interview went really well.","Das Vorstellungsgespräch lief richtig gut."],["Hire","Нанимать","einstellen","We plan to hire two new testers.","Wir planen, zwei neue Tester einzustellen."],["Resign","Увольняться (по своему желанию)","kündigen","She resigned to start her own business.","Sie hat gekündigt, um sich selbstständig zu machen."],["Promotion","Повышение (в должности)","die Beförderung","He got a promotion after two years.","Nach zwei Jahren wurde er befördert."],["Skill","Навык","die Fähigkeit","Communication is an important skill.","Kommunikation ist eine wichtige Fähigkeit."],["Experience","Опыт","die Erfahrung","I have five years of experience in QA.","Ich habe fünf Jahre Erfahrung in der QA."],["Probation period","Испытательный срок","die Probezeit","The probation period is six months.","Die Probezeit beträgt sechs Monate."],["Notice period","Срок уведомления об увольнении","die Kündigungsfrist","My notice period is three months.","Meine Kündigungsfrist beträgt drei Monate."],["Benefits","Льготы / бонусы","die Zusatzleistungen","The company offers good benefits.","Das Unternehmen bietet gute Zusatzleistungen."],["Strength","Сильная сторона","die Stärke","What is your greatest strength?","Was ist Ihre größte Stärke?"],["Weakness","Слабая сторона","die Schwäche","Talk about a weakness and how you work on it.","Sprich über eine Schwäche und wie du daran arbeitest."],["Goal","Цель","das Ziel","My goal is to become a team lead.","Mein Ziel ist es, Teamleiter zu werden."],["Responsibility","Ответственность / обязанность","die Verantwortung","Testing the payments is my responsibility.","Das Testen der Zahlungen liegt in meiner Verantwortung."],["Raise","Повышение зарплаты","die Gehaltserhöhung","I asked my manager for a raise.","Ich habe meinen Chef um eine Gehaltserhöhung gebeten."]]}]},{"title":"Общение","packs":[{"id":"phrases","title":"Связки и полезные фразы","words":[["However","Однако","jedoch","The plan is good; however, it is expensive.","Der Plan ist gut, jedoch ist er teuer."],["Therefore","Поэтому","deshalb","The server was down; therefore, we postponed the test.","Der Server war ausgefallen, deshalb haben wir den Test verschoben."],["Although","Хотя","obwohl","Although it was late, we kept working.","Obwohl es spät war, haben wir weitergearbeitet."],["In addition","Кроме того","außerdem","In addition, we need more time for testing.","Außerdem brauchen wir mehr Zeit zum Testen."],["As a result","В результате","infolgedessen","As a result, the release was delayed.","Infolgedessen wurde das Release verschoben."],["On the other hand","С другой стороны","andererseits","On the other hand, the new tool is cheaper.","Andererseits ist das neue Tool günstiger."],["In my opinion","По-моему","meiner Meinung nach","In my opinion, we should test it again.","Meiner Meinung nach sollten wir es noch einmal testen."],["By the way","Кстати","übrigens","By the way, did you see my message?","Übrigens, hast du meine Nachricht gesehen?"],["As soon as possible","Как можно скорее","so schnell wie möglich","Please reply as soon as possible.","Bitte antworte so schnell wie möglich."],["It depends","Зависит от обстоятельств","es kommt darauf an","Will it work? It depends on the browser.","Wird es funktionieren? Es kommt auf den Browser an."],["Make sure","Убедиться / проследить","sicherstellen","Make sure the tests pass before you merge.","Stell sicher, dass die Tests bestehen, bevor du mergst."],["Figure out","Разобраться / выяснить","herausfinden","We need to figure out why it fails.","Wir müssen herausfinden, warum es fehlschlägt."],["Look forward to","С нетерпением ждать","sich freuen auf","I look forward to hearing from you.","Ich freue mich darauf, von Ihnen zu hören."],["Get back to","Вернуться (с ответом)","sich zurückmelden","I'll get back to you tomorrow.","Ich melde mich morgen bei dir zurück."],["Keep in mind","Иметь в виду","bedenken","Keep in mind that the API has limits.","Bedenke, dass die API Limits hat."]]}]}]}</script>
 <script>
 "use strict";
 
@@ -672,7 +720,7 @@
    Если репозиторий публичный, лучше оставить пустой и ввести ссылку в приложении. */
 const DEFAULT_SHEET_URL = "";
 
-const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed", images: "wc.images", imageSource: "wc.imageSource", pics: "wc.pics", theme: "wc.theme", history: "wc.history", goal: "wc.goal", cardMode: "wc.cardMode", learnedOn: "wc.learnedOn", story: "wc.story", storyLang: "wc.storyLang" };
+const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed", images: "wc.images", imageSource: "wc.imageSource", pics: "wc.pics", theme: "wc.theme", history: "wc.history", goal: "wc.goal", cardMode: "wc.cardMode", learnedOn: "wc.learnedOn", story: "wc.story", storyLang: "wc.storyLang", source: "wc.source", packs: "wc.packs" };
 const AUTO_REFRESH_MS = 10 * 60 * 1000;
 
 const storage = {
@@ -760,8 +808,34 @@ const isDemo = () => words.length > 0 && words[0].demo === true;
 
 /* ---------- Состояние ---------- */
 let sheetUrl = storage.get(KEYS.url, DEFAULT_SHEET_URL) || "";
-let words = parseWords(storage.get(KEYS.csv, ""));
-if (!words.length) words = DEMO_WORDS.slice();
+let packData = { groups: [] };
+try { packData = JSON.parse(document.getElementById("packs-data").textContent); } catch {}
+let wordSource = storage.get(KEYS.source, "own"); // own | packs | both
+let selectedPacks = safeJSON(storage.get(KEYS.packs, "[]"), []);
+let ownWords = parseWords(storage.get(KEYS.csv, ""));
+let words = [];
+
+function allPacks() { return packData.groups.flatMap(g => g.packs); }
+function packWords() {
+  const out = [];
+  for (const p of allPacks()) {
+    if (!selectedPacks.includes(p.id)) continue;
+    for (const [english, russian, german, exampleEN, exampleDE] of p.words) {
+      out.push({ id: english.toLowerCase(), english, russian, german, exampleEN, exampleDE, image: "", pack: p.title });
+    }
+  }
+  return out;
+}
+function rebuildWords() {
+  const list = [];
+  if (wordSource !== "packs") list.push(...ownWords);
+  if (wordSource !== "own") list.push(...packWords());
+  const seen = new Set();
+  words = list.filter(w => !seen.has(w.id) && seen.add(w.id)); // одно слово — один прогресс
+  if (!words.length) words = DEMO_WORDS.slice();
+}
+function needsPacks() { return wordSource !== "own" && !selectedPacks.length; }
+rebuildWords();
 // пример карточки никогда не считается выученным (чистим и старые отметки)
 let known = new Set(safeJSON(storage.get(KEYS.known, "[]"), []).filter(id => !String(id).startsWith("demo:")));
 let onlyUnknown = storage.get(KEYS.onlyUnknown, "1") === "1";
@@ -1064,7 +1138,10 @@ function clozeMatch(w) {
     const tokens = v.toLowerCase().split(/\s+/).map(t => t.replace(/[^a-z'’-]/g, "")).filter(Boolean);
     if (!tokens.length) continue;
     const pattern = tokens
-      .map(t => escapeRe(t.length > 3 && t.endsWith("e") ? t.slice(0, -1) : t) + "[a-z'’]*")
+      .map(t => {
+        if (t.length > 2 && /[^aeiou]y$/.test(t)) return escapeRe(t.slice(0, -1)) + "[iy][a-z'’]*"; // fry → fried
+        return escapeRe(t.length > 3 && t.endsWith("e") ? t.slice(0, -1) : t) + "[a-z'’]*";
+      })
       .join("\\s+");
     const m = new RegExp(`\\b${pattern}`, "i").exec(sentence);
     if (m) return { start: m.index, end: m.index + m[0].length };
@@ -1389,6 +1466,7 @@ function renderList() {
       el("span", { class: "row-text" }, [
         el("p", { class: "row-en" }, w.english),
         el("p", { class: "row-tr" }, [w.russian, w.german].filter(Boolean).join("\n")),
+        w.pack ? el("p", { class: "row-pack" }, w.pack) : null,
       ]),
       check,
     ]);
@@ -1406,7 +1484,7 @@ function renderStatus() {
   $("progress-fill").style.width = `${Math.min(1, done / dailyGoal) * 100}%`;
   $("progress-fill").classList.toggle("done", done >= dailyGoal);
   $("goal-text").textContent = demo
-    ? "Это пример карточки. Ваши слова появятся после загрузки таблицы."
+    ? (needsPacks() ? "Это пример карточки. Выберите наборы слов в настройках." : "Это пример карточки. Ваши слова появятся после загрузки таблицы.")
     : done >= dailyGoal ? `Цель выполнена: ${done} из ${dailyGoal}` : `Сегодня ${done} из ${dailyGoal}`;
   const streak = streakDays();
   $("streak").hidden = demo || streak === 0;
@@ -1440,7 +1518,8 @@ async function refresh() {
     if (text.trim().startsWith("<")) throw new Error("ссылка ведёт не на CSV. Опубликуйте лист в формате .csv");
     const parsed = parseWords(text);
     if (!parsed.length) throw new Error("в таблице не найдено слов");
-    words = parsed;
+    ownWords = parsed;
+    rebuildWords();
     storage.set(KEYS.csv, text);
     storage.set(KEYS.updated, String(Date.now()));
     errorText = "";
@@ -1458,6 +1537,8 @@ async function refresh() {
 function openSettings() {
   $("url-input").value = sheetUrl;
   $("only-unknown").checked = onlyUnknown;
+  $("word-source").value = wordSource;
+  updatePacksButton();
   $("image-source").value = imageSource;
   $("image-hint").textContent = IMAGE_HINTS[imageSource] || "";
   $("theme-select").value = storage.get(KEYS.theme, "auto");
@@ -1772,6 +1853,61 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible") return;
   const updated = Number(storage.get(KEYS.updated, "0"));
   if (Date.now() - updated > AUTO_REFRESH_MS) refresh();
+});
+
+/* ---------- Готовые наборы слов ---------- */
+function updatePacksButton() {
+  const n = selectedPacks.length;
+  const count = packWords().length;
+  $("packs-btn").textContent = n ? `Наборы: ${n} (${count} слов)` : "Выбрать наборы";
+  $("packs-btn").hidden = wordSource === "own";
+}
+function wordsChanged() {
+  rebuildWords();
+  queue = [];
+  if (!current || !words.some(w => w.id === current.id)) next();
+  renderAll();
+  updatePacksButton();
+}
+function renderPacks() {
+  $("packs-list").replaceChildren(...packData.groups.map(g => el("div", { class: "pack-group" }, [
+    el("h3", {}, g.title),
+    el("div", { class: "pack-grid" }, g.packs.map(p => {
+      const on = selectedPacks.includes(p.id);
+      return el("button", {
+        class: "pack-chip", type: "button", "aria-pressed": String(on),
+        onclick: () => {
+          selectedPacks = on ? selectedPacks.filter(id => id !== p.id) : [...selectedPacks, p.id];
+          storage.set(KEYS.packs, JSON.stringify(selectedPacks));
+          renderPacks();
+        },
+      }, [p.title, el("span", {}, String(p.words.length))]);
+    })),
+  ])));
+}
+function openPacks() {
+  renderPacks();
+  $("packs-dialog").showModal();
+}
+$("packs-btn").addEventListener("click", openPacks);
+$("packs-all").addEventListener("click", () => {
+  selectedPacks = allPacks().map(p => p.id);
+  storage.set(KEYS.packs, JSON.stringify(selectedPacks));
+  renderPacks();
+});
+$("packs-none").addEventListener("click", () => {
+  selectedPacks = [];
+  storage.set(KEYS.packs, JSON.stringify(selectedPacks));
+  renderPacks();
+});
+$("packs-done").addEventListener("click", () => $("packs-dialog").close());
+$("packs-dialog").addEventListener("close", wordsChanged);
+$("packs-dialog").addEventListener("click", e => { if (e.target === $("packs-dialog")) $("packs-dialog").close(); });
+$("word-source").addEventListener("change", e => {
+  wordSource = e.target.value;
+  storage.set(KEYS.source, wordSource);
+  wordsChanged();
+  if (needsPacks()) openPacks(); // сразу предложить выбрать темы
 });
 
 /* ---------- История из выученных слов ---------- */
