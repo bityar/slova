@@ -640,7 +640,8 @@ const isDemo = () => words.length > 0 && words[0].demo === true;
 let sheetUrl = storage.get(KEYS.url, DEFAULT_SHEET_URL) || "";
 let words = parseWords(storage.get(KEYS.csv, ""));
 if (!words.length) words = DEMO_WORDS.slice();
-let known = new Set(safeJSON(storage.get(KEYS.known, "[]"), []));
+// пример карточки никогда не считается выученным (чистим и старые отметки)
+let known = new Set(safeJSON(storage.get(KEYS.known, "[]"), []).filter(id => !String(id).startsWith("demo:")));
 let onlyUnknown = storage.get(KEYS.onlyUnknown, "1") === "1";
 let reviewed = safeObject(storage.get(KEYS.reviewed, "{}"));
 let showImages = storage.get(KEYS.images, "1") === "1";
@@ -1207,6 +1208,7 @@ $("card").addEventListener("keydown", e => {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFlipped(!flipped); }
 });
 function doAgain() {
+  if (current && current.demo) { next(); renderStatus(); return; } // пример просто показывается снова
   if (mode === "review" && current) {
     // забытое слово возвращается в изучение
     known.delete(current.id);
@@ -1220,6 +1222,7 @@ function doAgain() {
 }
 function doKnow() {
   if (!current) return;
+  if (current.demo) { next(); renderStatus(); return; } // пример не отмечается выученным
   if (mode === "review") {
     reviewed[current.id] = Date.now();
     saveReviewed();
