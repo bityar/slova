@@ -113,12 +113,13 @@
   }
   .seg button {
     flex: 1;
+    min-width: 0;
     border: 0;
     background: transparent;
-    padding: 8px 4px;
+    padding: 8px 2px;
     border-radius: 9px;
     font-weight: 600;
-    font-size: 15px;
+    font-size: 14px;
     white-space: nowrap;
     color: var(--muted);
   }
@@ -128,7 +129,7 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
   }
   .icon-btn {
-    width: 42px; height: 42px;
+    width: 38px; height: 42px;
     flex: none;
     display: grid; place-items: center;
     border: 0;
@@ -289,6 +290,19 @@
     min-height: 90px;
     margin: -8px -4px 4px;
   }
+  .pic-wrap { position: relative; }
+  .pic-next {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 36px; height: 36px;
+    display: grid; place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(10, 14, 22, .55);
+    color: #fff;
+  }
+  .pic-next svg { width: 18px; height: 18px; }
   .pic { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s ease; }
   .pic-wrap.loaded .pic { opacity: 1; }
   .back-head { display: flex; align-items: center; gap: 6px; margin-bottom: 20px; }
@@ -396,6 +410,78 @@
   .check svg { width: 15px; height: 15px; }
   .list-empty { padding: 24px 16px; color: var(--muted); text-align: center; }
 
+  /* История */
+  .story-controls { display: flex; gap: 8px; align-items: center; }
+  .story-controls .modes { flex: 1; }
+  .story-controls .btn { min-height: 40px; padding: 0 14px; font-size: 15px; border-radius: 12px; white-space: nowrap; }
+  .story-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--surface);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 22px 20px 26px;
+  }
+  .story h2 { margin: 0 0 6px; font-size: 1.35rem; letter-spacing: -0.01em; }
+  .story-meta { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
+  .story-text p {
+    margin: 0 0 14px;
+    font-family: var(--read);
+    font-size: 1.12rem;
+    line-height: 1.7;
+  }
+  .sw { cursor: pointer; border-radius: 4px; }
+  .sw:active { background: var(--line); }
+  .tw {
+    border: 0;
+    padding: 0 3px;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border-bottom: 2px solid var(--accent);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .story-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }
+  .story-actions .btn { min-height: 42px; font-size: 15px; border-radius: 12px; }
+  .story-translation {
+    margin: 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    line-height: 1.6;
+    white-space: pre-line;
+  }
+  .story-empty { text-align: center; color: var(--muted); padding: 32px 8px; }
+  .story-empty h2 { color: var(--ink); margin: 0 0 8px; font-size: 1.25rem; }
+  .story-empty p { margin: 0 0 14px; }
+  .story-fallback { display: grid; gap: 10px; margin-top: 8px; text-align: left; }
+  .story-fallback textarea {
+    width: 100%;
+    min-height: 140px;
+    padding: 12px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--bg);
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 15px;
+    color: var(--ink);
+  }
+  .spinner {
+    width: 28px; height: 28px;
+    margin: 0 auto 12px;
+    border: 3px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .9s linear infinite;
+  }
+  .word-sheet-body { padding: 22px 20px 20px; display: grid; gap: 12px; }
+  .word-sheet-body .back-head { margin-bottom: 4px; }
+  .used-as { margin: 0; font-size: 14px; color: var(--muted); }
+
   /* Настройки */
   dialog {
     overflow-y: auto;
@@ -455,6 +541,7 @@
     <div class="seg" role="tablist" aria-label="Режим">
       <button role="tab" id="tab-study" aria-selected="true" aria-controls="view-study">Учить</button>
       <button role="tab" id="tab-review" aria-selected="false" aria-controls="view-study">Повтор</button>
+      <button role="tab" id="tab-story" aria-selected="false" aria-controls="view-story">История</button>
       <button role="tab" id="tab-list" aria-selected="false" aria-controls="view-list">Список</button>
     </div>
     <button class="icon-btn" id="refresh-btn" aria-label="Обновить слова из таблицы">
@@ -502,10 +589,26 @@
       <input class="search" type="search" id="search" placeholder="Поиск по словам" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <ul class="word-list" id="word-list"></ul>
     </section>
+    <section class="view" id="view-story" role="tabpanel" aria-labelledby="tab-story" hidden>
+      <div class="story-controls">
+        <div class="modes" id="story-lang" role="radiogroup" aria-label="Язык истории">
+          <button type="button" role="radio" data-lang="en" aria-checked="true">English</button>
+          <button type="button" role="radio" data-lang="de" aria-checked="false">Deutsch</button>
+        </div>
+        <button type="button" class="btn primary" id="story-new">Новая история</button>
+      </div>
+      <div class="story-scroll" id="story-scroll">
+        <article class="story" id="story"></article>
+      </div>
+    </section>
   </main>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<dialog id="word-sheet" aria-label="Слово из истории">
+  <div class="word-sheet-body" id="word-sheet-body"></div>
+</dialog>
 
 <dialog id="settings" aria-labelledby="settings-title">
   <div class="sheet">
@@ -514,8 +617,14 @@
     <textarea id="url-input" rows="3" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?gid=…&amp;single=true&amp;output=csv" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
     <p class="hint">В Google Таблице: Файл → Поделиться → Опубликовать в интернете → лист WORDS → формат CSV → Опубликовать. Скопируйте ссылку сюда.</p>
     <label class="toggle"><input type="checkbox" id="only-unknown"> Показывать только невыученные</label>
-    <label class="toggle"><input type="checkbox" id="show-images"> Картинки к словам</label>
-    <p class="hint">Картинку рисует бесплатный сервис Pollinations по английскому слову и примеру. Чтобы поставить свою, вставьте ссылку на изображение в колонку F таблицы.</p>
+    <label for="image-source">Картинки к словам</label>
+    <select class="select" id="image-source">
+      <option value="photo">Фото из открытых источников</option>
+      <option value="ai">Рисует нейросеть (медленно)</option>
+      <option value="custom">Только мои из колонки F</option>
+      <option value="off">Без картинок</option>
+    </select>
+    <p class="hint" id="image-hint"></p>
     <label for="goal-select">Цель на день</label>
     <select class="select" id="goal-select">
       <option value="5">5 карточек</option>
@@ -547,7 +656,7 @@
     <input class="range" type="range" id="rate" min="0.6" max="1.2" step="0.05">
     <p class="hint">Голоса с пометкой Enhanced или Premium звучат естественнее. Скачать их можно на iPhone: Настройки → Универсальный доступ → Устный контент → Голоса.</p>
     <p class="hint" id="updated-text"></p>
-    <p class="hint" id="version-text">Версия 14</p>
+    <p class="hint" id="version-text">Версия 19</p>
     <div class="sheet-actions">
       <button type="button" class="btn primary" id="save-btn">Сохранить и загрузить</button>
       <button type="button" class="btn secondary" id="close-btn">Закрыть</button>
@@ -563,7 +672,7 @@
    Если репозиторий публичный, лучше оставить пустой и ввести ссылку в приложении. */
 const DEFAULT_SHEET_URL = "";
 
-const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed", images: "wc.images", theme: "wc.theme", history: "wc.history", goal: "wc.goal", cardMode: "wc.cardMode" };
+const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed", images: "wc.images", imageSource: "wc.imageSource", pics: "wc.pics", theme: "wc.theme", history: "wc.history", goal: "wc.goal", cardMode: "wc.cardMode", learnedOn: "wc.learnedOn", story: "wc.story", storyLang: "wc.storyLang" };
 const AUTO_REFRESH_MS = 10 * 60 * 1000;
 
 const storage = {
@@ -657,9 +766,12 @@ if (!words.length) words = DEMO_WORDS.slice();
 let known = new Set(safeJSON(storage.get(KEYS.known, "[]"), []).filter(id => !String(id).startsWith("demo:")));
 let onlyUnknown = storage.get(KEYS.onlyUnknown, "1") === "1";
 let reviewed = safeObject(storage.get(KEYS.reviewed, "{}"));
-let showImages = storage.get(KEYS.images, "1") === "1";
+// Источник картинок: photo | ai | custom | off (старая настройка «выключено» переносится)
+let imageSource = storage.get(KEYS.imageSource, storage.get(KEYS.images, "1") === "0" ? "off" : "photo");
+let picMap = safeObject(storage.get(KEYS.pics, "{}")); // найденные фото по словам
 let history = safeObject(storage.get(KEYS.history, "{}"));
 let dailyGoal = Number(storage.get(KEYS.goal, "10")) || 10;
+let learnedOn = safeObject(storage.get(KEYS.learnedOn, "{}")); // в какой день слово отмечено «Знаю»
 let cardMode = storage.get(KEYS.cardMode, "word"); // "word" | "reverse" | "cloze" | "mix"
 let currentFace = "word";
 let mode = "learn"; // "learn" | "review"
@@ -717,6 +829,35 @@ function bump(field) {
     const n = streakDays();
     showToast(n > 1 ? `Цель выполнена! ${n} ${plural(n, "день", "дня", "дней")} подряд 🔥` : "Цель на сегодня выполнена! 🎉");
   }
+}
+function saveHistory() { storage.set(KEYS.history, JSON.stringify(history)); }
+// Слово отмечено выученным: засчитываем в цель на сегодня
+function markLearned(w) {
+  known.add(w.id);
+  saveKnown();
+  if (w.demo) return;
+  learnedOn[w.id] = dayKey();
+  storage.set(KEYS.learnedOn, JSON.stringify(learnedOn));
+  bump("learned");
+}
+// Отметка снята: если слово выучено сегодня, убираем его из сегодняшнего счётчика
+function unmarkLearned(w) {
+  known.delete(w.id);
+  saveKnown();
+  const today = dayKey();
+  if (learnedOn[w.id] === today && history[today] && history[today].learned > 0) {
+    history[today].learned--;
+    saveHistory();
+  }
+  delete learnedOn[w.id];
+  storage.set(KEYS.learnedOn, JSON.stringify(learnedOn));
+}
+// Старые данные: выученных сегодня не может быть больше, чем выученных слов вообще
+function reconcileToday() {
+  const h = history[dayKey()];
+  if (!h) return;
+  const realKnown = [...known].filter(id => !String(id).startsWith("demo:")).length;
+  if ((h.learned || 0) > realKnown) { h.learned = realKnown; saveHistory(); }
 }
 function plural(n, one, few, many) {
   const a = n % 10, b = n % 100;
@@ -825,36 +966,74 @@ if ("speechSynthesis" in window) {
 }
 
 /* ---------- Карточки ---------- */
-let upcoming = null;
-function randomFrom(all, excludeId) {
-  let list = all.filter(w => w.id !== excludeId);
-  if (mode === "review") list = list.slice(0, 5); // случайное из самых давно повторённых
-  if (!list.length) list = all;
+// Следующие карточки выбираются заранее, чтобы успеть найти и скачать для них картинки
+let queue = [];
+const QUEUE_SIZE = 3;
+function randomPick(all, exclude) {
+  let list = all.filter(w => !exclude.has(w.id));
+  if (mode === "review") list = list.slice(0, 5 + QUEUE_SIZE); // из самых давно повторённых
   return list.length ? list[Math.floor(Math.random() * list.length)] : null;
 }
 
-// Картинку следующей карточки скачиваем заранее, с паузой из-за лимита бесплатного сервиса
-let preloadTimer = 0, preloadImg = null;
+let preloadTimer = 0, preloadImgs = [], preloaded = new Set();
+function preloadPhoto(w) {
+  if (preloaded.has(w.id)) return;
+  preloaded.add(w.id);
+  findPhotos(w).then(entry => {
+    if (!entry || !entry.urls.length) return;
+    const src = photoSources(entry.urls[entry.i % entry.urls.length])[0];
+    if (!src) return;
+    const im = new Image();
+    im.referrerPolicy = "no-referrer";
+    im.src = src;
+    preloadImgs.push(im);
+    if (preloadImgs.length > 12) preloadImgs.shift();
+  }).catch(() => preloaded.delete(w.id));
+}
 function schedulePreload() {
   clearTimeout(preloadTimer);
-  if (!showImages || !upcoming || upcoming.demo) return;
-  const target = upcoming;
-  const wait = Math.max(1500, lastImageRequest + 15500 - Date.now());
-  preloadTimer = setTimeout(() => {
-    if (upcoming !== target) return;
+  if (imageSource === "off" || imageSource === "custom") return;
+  const targets = queue.filter(w => !w.demo && !/^(https:\/\/|data:image\/)/i.test(w.image));
+  if (!targets.length) return;
+
+  if (imageSource === "photo") {
+    targets.forEach(preloadPhoto); // поиски сами идут по очереди раз в секунду
+    return;
+  }
+
+  const target = targets[0];
+  const url = imageUrl(target);
+  const wait = Math.max(1500, lastImageRequest + IMAGE_GAP - Date.now());
+  preloadTimer = setTimeout(async () => {
+    if (queue[0] !== target || await isCachedImage(url)) return;
+    if (Date.now() - lastImageRequest < IMAGE_GAP) return;
     lastImageRequest = Date.now();
-    preloadImg = new Image();
-    preloadImg.src = imageUrl(target);
+    const im = new Image();
+    im.src = url;
+    preloadImgs.push(im);
   }, wait);
 }
 
 function next() {
   const all = pool();
+  const ids = new Set(all.map(w => w.id));
   const prevId = current ? current.id : null;
-  const useUpcoming = upcoming && upcoming.id !== prevId && all.some(w => w.id === upcoming.id);
-  current = useUpcoming ? upcoming : randomFrom(all, prevId);
-  upcoming = current ? randomFrom(all, current.id) : null;
-  if (upcoming && current && upcoming.id === current.id) upcoming = null;
+  queue = queue.filter(w => ids.has(w.id) && w.id !== prevId);
+  if (queue.length) {
+    current = queue.shift();
+  } else {
+    current = randomPick(all, new Set(prevId ? [prevId] : []));
+    if (!current) current = all[0] || null; // единственное слово
+  }
+  if (current) {
+    const exclude = new Set([current.id, ...queue.map(w => w.id)]);
+    while (queue.length < QUEUE_SIZE) {
+      const w = randomPick(all, exclude);
+      if (!w) break;
+      queue.push(w);
+      exclude.add(w.id);
+    }
+  }
   currentFace = current ? pickFace(current) : "word";
   setFlipped(false, true);
   renderStudy();
@@ -933,27 +1112,154 @@ function imageUrl(w) {
   const prompt = `Simple flat cartoon illustration, ${scene}. The key idea is "${word}". ` +
     "Concrete people and objects, one clear focus, light plain background, no text, no letters, no numbers";
   return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
-    `?width=512&height=320&model=flux&seed=${seedFor(w.id)}&nologo=true`;
+    `?width=512&height=320&seed=${seedFor(w.id)}&nologo=true`;
 }
-let lastImageRequest = 0;
-function picture(w) {
-  const url = imageUrl(w);
-  if (!url.startsWith("data:")) lastImageRequest = Date.now();
-  const wrap = el("div", { class: "pic-wrap" });
-  const img = el("img", { class: "pic", alt: "", decoding: "async", draggable: "false" });
-  let retried = false;
-  img.addEventListener("load", () => wrap.classList.add("loaded"));
-  img.addEventListener("error", () => {
-    // бесплатный сервис ограничивает частоту запросов: одна повторная попытка, потом без картинки
-    if (!retried) {
-      retried = true;
-      setTimeout(() => { if (wrap.isConnected) img.src = url; }, 16000);
-    } else {
-      wrap.remove();
+/* ---------- Фото из открытых источников ---------- */
+const IMAGE_HINTS = {
+  photo: "Фото ищутся по английскому слову в Openverse (открытые фото Flickr, Wikimedia и др.). Если фото не подходит, нажмите ↻ на картинке. Своё фото можно задать ссылкой в колонке F таблицы.",
+  ai: "Картинку рисует бесплатный сервис Pollinations по вашему примеру. Без регистрации он даёт одну новую картинку примерно раз в 45 секунд, поэтому картинки появляются постепенно.",
+  custom: "Показываются только картинки, ссылки на которые вы вставили в колонку F таблицы.",
+  off: "Карточки без картинок.",
+};
+function searchTerm(w) {
+  return w.english.split("/")[0].trim().replace(/^to\s+/i, "");
+}
+let photoQueue = Promise.resolve(), lastPhotoSearch = 0;
+function queued(task) {
+  // поиски идут по одному с паузой больше секунды: так требует Openverse
+  const run = async () => {
+    const wait = Math.max(0, lastPhotoSearch + 1100 - Date.now());
+    if (wait) await new Promise(r => setTimeout(r, wait));
+    lastPhotoSearch = Date.now();
+    return task();
+  };
+  const p = photoQueue.then(run, run);
+  photoQueue = p.catch(() => {});
+  return p;
+}
+async function searchOpenverse(term, wide) {
+  const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(term)}&page_size=10&mature=false` +
+    (wide ? "&aspect_ratio=wide" : "");
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`Openverse ${res.status}`);
+  const data = await res.json();
+  return (data.results || []).map(r => ({ t: r.thumbnail || "", u: r.url || "" })).filter(r => r.t || r.u);
+}
+async function searchCommons(term) {
+  const url = "https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*" +
+    "&generator=search&gsrnamespace=6&gsrlimit=10&prop=imageinfo&iiprop=url&iiurlwidth=640" +
+    `&gsrsearch=${encodeURIComponent("filetype:bitmap " + term)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Commons ${res.status}`);
+  const data = await res.json();
+  return Object.values((data.query && data.query.pages) || {})
+    .sort((a, b) => (a.index || 0) - (b.index || 0))
+    .map(p => p.imageinfo && p.imageinfo[0])
+    .filter(Boolean)
+    .map(i => ({ t: i.thumburl || "", u: i.url || "" }));
+}
+// Самые быстрые ссылки на фото: уменьшенные копии прямо с Flickr и Wikimedia,
+// а не через медленный сервис превью Openverse
+function photoSources(photo) {
+  const out = [];
+  const u = photo.u || "";
+  let m = u.match(/^(https:\/\/live\.staticflickr\.com\/\d+\/\d+_[0-9a-f]+)(?:_[a-z0-9])?\.jpg$/i);
+  if (m) out.push(`${m[1]}_z.jpg`); // 640 px
+  m = u.match(/^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/([0-9a-f])\/([0-9a-f]{2})\/([^/?#]+\.(?:jpe?g|png))$/i);
+  if (m) out.push(`https://upload.wikimedia.org/wikipedia/commons/thumb/${m[1]}/${m[2]}/${m[3]}/640px-${m[3]}`);
+  if (photo.t) out.push(photo.t);
+  if (u) out.push(u);
+  return [...new Set(out)];
+}
+const photoPending = new Map();
+function findPhotos(w) {
+  const saved = picMap[w.id];
+  if (saved && Array.isArray(saved.urls)) return Promise.resolve(saved);
+  if (photoPending.has(w.id)) return photoPending.get(w.id);
+  const term = searchTerm(w);
+  const p = queued(async () => {
+    let urls = [];
+    try {
+      urls = await searchOpenverse(term, true);
+      if (!urls.length) urls = await searchOpenverse(term, false);
+    } catch {
+      urls = await searchCommons(term); // Openverse недоступен или лимит — ищем в Wikimedia Commons
     }
-  });
-  img.src = url;
+    const entry = { urls: urls.slice(0, 10), i: 0 };
+    picMap[w.id] = entry;
+    storage.set(KEYS.pics, JSON.stringify(picMap));
+    return entry;
+  }).finally(() => photoPending.delete(w.id));
+  photoPending.set(w.id, p);
+  return p;
+}
+const NEXT_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
+
+// Бесплатный Pollinations даёт одну новую картинку примерно раз в 45 секунд.
+// Поэтому новые картинки запрашиваются не чаще этого, а уже готовые берутся из кэша сразу.
+const IMAGE_GAP = 46000;
+let lastImageRequest = 0;
+const isGenerated = url => url.startsWith("https://image.pollinations.ai/");
+async function isCachedImage(url) {
+  if (!("caches" in window)) return false;
+  try { return !!(await caches.match(url)); } catch { return false; }
+}
+function picture(w) {
+  const custom = /^(https:\/\/|data:image\/)/i.test(w.image) ? w.image : "";
+  if (imageSource === "off" || (imageSource === "custom" && !custom)) return null;
+
+  const wrap = el("div", { class: "pic-wrap", hidden: "" });
+  const img = el("img", { class: "pic", alt: "", decoding: "async", draggable: "false", referrerpolicy: "no-referrer" });
   wrap.append(img);
+  let sources = [], slowTimer = 0;
+  const tryNext = () => {
+    clearTimeout(slowTimer);
+    if (!sources.length) { if (!img.complete || !img.naturalWidth) wrap.remove(); return; }
+    img.src = sources.shift();
+    if (sources.length) slowTimer = setTimeout(tryNext, 4000); // слишком долго — берём другую ссылку
+  };
+  img.addEventListener("load", () => { clearTimeout(slowTimer); wrap.hidden = false; wrap.classList.add("loaded"); });
+  img.addEventListener("error", tryNext);
+  const load = list => {
+    sources = list.filter(Boolean);
+    if (!sources.length) { wrap.remove(); return; }
+    tryNext();
+  };
+
+  if (custom) { load([custom]); return wrap; }
+
+  if (imageSource === "photo") {
+    wrap.hidden = false; // серая заглушка, пока ищется фото
+    findPhotos(w).then(entry => {
+      if (!wrap.isConnected && !wrap.parentNode) return;
+      if (!entry || !entry.urls.length) { wrap.remove(); return; }
+      load(photoSources(entry.urls[entry.i % entry.urls.length]));
+      if (entry.urls.length > 1) {
+        const btn = el("button", { class: "pic-next", type: "button", "aria-label": "Другое фото" });
+        btn.innerHTML = NEXT_SVG;
+        btn.addEventListener("click", e => {
+          e.stopPropagation();
+          entry.i = (entry.i + 1) % entry.urls.length;
+          storage.set(KEYS.pics, JSON.stringify(picMap));
+          const fresh = picture(w);
+          if (fresh) wrap.replaceWith(fresh); else wrap.remove();
+        });
+        wrap.append(btn);
+      }
+    }).catch(() => wrap.remove());
+    return wrap;
+  }
+
+  // imageSource === "ai"
+  const url = imageUrl(w);
+  (async () => {
+    if (!(await isCachedImage(url))) {
+      if (Date.now() - lastImageRequest < IMAGE_GAP) { wrap.remove(); return; } // лимит: эту пропускаем
+      lastImageRequest = Date.now();
+      wrap.hidden = false;
+    }
+    img.src = url;
+  })();
   return wrap;
 }
 
@@ -980,7 +1286,7 @@ function renderCard(w) {
       el("p", { class: "tap-hint" }, "Нажмите, чтобы увидеть перевод"),
     ];
   }
-  $("front").replaceChildren(...[showImages ? picture(w) : null, ...front].filter(Boolean));
+  $("front").replaceChildren(...[picture(w), ...front].filter(Boolean));
 
   const blocks = [
     el("div", { class: "back-head" }, [
@@ -1074,8 +1380,7 @@ function renderList() {
     const row = el("button", {
       class: "row", type: "button", "aria-pressed": String(isKnown),
       onclick: () => {
-        if (known.has(w.id)) known.delete(w.id); else known.add(w.id);
-        saveKnown();
+        if (known.has(w.id)) unmarkLearned(w); else markLearned(w);
         row.setAttribute("aria-pressed", String(known.has(w.id)));
         renderStatus();
         if (!current) next();
@@ -1106,7 +1411,7 @@ function renderStatus() {
   const streak = streakDays();
   $("streak").hidden = demo || streak === 0;
   $("streak").textContent = `🔥 ${streak} ${plural(streak, "день", "дня", "дней")} подряд`;
-  const inReview = mode === "review" && $("view-list").hidden;
+  const inReview = mode === "review" && !$("view-study").hidden;
   $("status-text").textContent = demo || !total ? ""
     : inReview ? `Выучено ${learned} из ${total}, сегодня повторено ${today.reviewed || 0}`
     : `Выучено ${learned} из ${total}`;
@@ -1153,7 +1458,8 @@ async function refresh() {
 function openSettings() {
   $("url-input").value = sheetUrl;
   $("only-unknown").checked = onlyUnknown;
-  $("show-images").checked = showImages;
+  $("image-source").value = imageSource;
+  $("image-hint").textContent = IMAGE_HINTS[imageSource] || "";
   $("theme-select").value = storage.get(KEYS.theme, "auto");
   $("goal-select").value = String(dailyGoal);
   const updated = Number(storage.get(KEYS.updated, "0"));
@@ -1179,6 +1485,10 @@ $("close-btn").addEventListener("click", () => $("settings").close());
 $("reset-btn").addEventListener("click", () => {
   if (!confirm("Сбросить отметки «Знаю» и историю повторений для всех слов?")) return;
   known.clear();
+  learnedOn = {};
+  storage.set(KEYS.learnedOn, JSON.stringify(learnedOn));
+  const todayStats = history[dayKey()];
+  if (todayStats) { todayStats.learned = 0; saveHistory(); }
   saveKnown();
   reviewed = {};
   saveReviewed();
@@ -1212,10 +1522,12 @@ $("rate").addEventListener("input", e => {
   $("rate-value").textContent = `${speechRate.toFixed(2).replace(".", ",")}×`;
 });
 $("rate").addEventListener("change", () => speak(SAMPLES.en, "en-US"));
-$("show-images").addEventListener("change", e => {
-  showImages = e.target.checked;
-  storage.set(KEYS.images, showImages ? "1" : "0");
+$("image-source").addEventListener("change", e => {
+  imageSource = e.target.value;
+  storage.set(KEYS.imageSource, imageSource);
+  $("image-hint").textContent = IMAGE_HINTS[imageSource] || "";
   if (current) renderCard(current);
+  schedulePreload();
 });
 $("settings").addEventListener("click", e => { if (e.target === $("settings")) $("settings").close(); });
 
@@ -1255,11 +1567,10 @@ function doAgain() {
   if (current && current.demo) { next(); renderStatus(); return; } // пример просто показывается снова
   if (mode === "review" && current) {
     // забытое слово возвращается в изучение
-    known.delete(current.id);
+    unmarkLearned(current);
     delete reviewed[current.id];
-    saveKnown();
     saveReviewed();
-    if (!current.demo) bump("reviewed");
+    if (!current.demo) bump("reviewed"); // повторение всё равно засчитывается
   }
   next();
   renderStatus();
@@ -1272,9 +1583,7 @@ function doKnow() {
     saveReviewed();
     if (!current.demo) bump("reviewed");
   } else if (!known.has(current.id)) {
-    known.add(current.id);
-    saveKnown();
-    if (!current.demo) bump("learned");
+    markLearned(current);
   }
   next();
   renderStatus();
@@ -1403,10 +1712,16 @@ $("modes").addEventListener("click", e => {
   // Мышь (на компьютере)
   wrap.addEventListener("pointerdown", e => {
     if (e.pointerType !== "mouse" || e.button !== 0) return;
+    if (e.target.closest && e.target.closest("button")) return; // кнопки на карточке нажимаются как обычно
     begin(e.clientX, e.clientY);
-    try { wrap.setPointerCapture(e.pointerId); } catch {}
   });
-  wrap.addEventListener("pointermove", e => { if (e.pointerType === "mouse") move(e.clientX, e.clientY); });
+  wrap.addEventListener("pointermove", e => {
+    if (e.pointerType !== "mouse") return;
+    const was = swiping;
+    move(e.clientX, e.clientY);
+    // захват мыши только когда свайп начался, иначе клики по кнопкам на карточке теряются
+    if (!was && swiping) { try { wrap.setPointerCapture(e.pointerId); } catch {} }
+  });
   wrap.addEventListener("pointerup", e => { if (e.pointerType === "mouse") finish(true); });
   wrap.addEventListener("pointercancel", e => { if (e.pointerType === "mouse") finish(false); });
 
@@ -1428,18 +1743,21 @@ $("settings-btn").addEventListener("click", openSettings);
 $("search").addEventListener("input", renderList);
 
 function showView(name) {
-  const isList = name === "list";
-  $("view-study").hidden = isList;
-  $("view-list").hidden = !isList;
-  for (const [id, view] of [["tab-study", "learn"], ["tab-review", "review"], ["tab-list", "list"]]) {
-    $(id).setAttribute("aria-selected", String(view === name));
+  const view = name === "list" || name === "story" ? name : "study";
+  $("view-study").hidden = view !== "study";
+  $("view-list").hidden = view !== "list";
+  $("view-story").hidden = view !== "story";
+  for (const [id, v] of [["tab-study", "learn"], ["tab-review", "review"], ["tab-story", "story"], ["tab-list", "list"]]) {
+    $(id).setAttribute("aria-selected", String(v === name));
   }
-  if (isList) {
+  if (view === "list") {
     renderList();
+  } else if (view === "story") {
+    renderStory();
   } else {
     const changed = mode !== name;
     mode = name;
-    if (changed) upcoming = null;
+    if (changed) queue = [];
     updateButtons();
     if (changed || !current) next(); else renderStudy();
   }
@@ -1448,11 +1766,279 @@ function showView(name) {
 $("tab-study").addEventListener("click", () => showView("learn"));
 $("tab-review").addEventListener("click", () => showView("review"));
 $("tab-list").addEventListener("click", () => showView("list"));
+$("tab-story").addEventListener("click", () => showView("story"));
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible") return;
   const updated = Number(storage.get(KEYS.updated, "0"));
   if (Date.now() - updated > AUTO_REFRESH_MS) refresh();
+});
+
+/* ---------- История из выученных слов ---------- */
+// Историю пишет бесплатная текстовая модель Pollinations. Если сервис недоступен,
+// можно скопировать задание в любой чат с ИИ и вставить ответ обратно.
+const STORY_WORDS = 8;
+let storyLang = storage.get(KEYS.storyLang, "en");
+let story = safeStory(storage.get(KEYS.story, ""));
+let storyState = "idle"; // idle | loading | error
+let storyError = "";
+let storyPrompt = "";
+let storyShowTranslation = false;
+
+function safeStory(text) {
+  try { const v = JSON.parse(text); return v && typeof v.story === "string" ? v : null; } catch { return null; }
+}
+function learnedWords() {
+  return words.filter(w => !w.demo && known.has(w.id));
+}
+function pickStoryWords() {
+  // в приоритете слова, которые давно не повторяли; из них — случайные
+  const pool = learnedWords().sort((a, b) => (reviewed[a.id] || 0) - (reviewed[b.id] || 0)).slice(0, 24);
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, STORY_WORDS);
+}
+function buildStoryPrompt(items, lang) {
+  const language = lang === "de" ? "German" : "English";
+  const list = items.map((w, i) => {
+    const target = lang === "de" ? (w.german || w.english) : w.english;
+    const other = lang === "de" ? `English: ${w.english}` : (w.german ? `German: ${w.german}` : "");
+    return `${i + 1}. ${target} (${[other, `Russian: ${w.russian}`].filter(Boolean).join("; ")})`;
+  }).join("\n");
+  return `Write a short, engaging everyday story in ${language} for a B1–B2 learner, 150–220 words, 3–4 paragraphs.
+Use ALL of these vocabulary items naturally, each at least once (inflected forms are fine; for items with several options separated by "/", use the one that fits):
+${list}
+
+Every time you use one of these items, wrap exactly the words you used like this: [[the words|N]], where N is the item number. Do not wrap anything else.
+Return ONLY valid JSON, no markdown, in this shape:
+{"title": "short title in ${language}", "story": "the story with [[...|N]] marks, paragraphs separated by \\n\\n", "translation": "full natural Russian translation of the story without marks"}`;
+}
+function parseStoryReply(text) {
+  const raw = String(text || "").trim();
+  let data = null;
+  const start = raw.indexOf("{"), end = raw.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try { data = JSON.parse(raw.slice(start, end + 1)); } catch {}
+  }
+  if (!data || typeof data.story !== "string") {
+    if (!/\[\[[^\]]+\|\d+\]\]/.test(raw)) return null;
+    data = { title: "", story: raw, translation: "" }; // вставили просто текст с пометками
+  }
+  return { title: String(data.title || ""), story: data.story, translation: String(data.translation || "") };
+}
+
+async function generateStory() {
+  const items = pickStoryWords();
+  if (items.length < 3) { renderStory(); return; }
+  storyPrompt = buildStoryPrompt(items, storyLang);
+  storyState = "loading";
+  storyError = "";
+  renderStory();
+  const pending = { lang: storyLang, items: items.map(w => w.id) };
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 60000);
+    const res = await fetch("https://text.pollinations.ai/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "openai",
+        jsonMode: true,
+        seed: Math.floor(Math.random() * 1e6),
+        referrer: "slova-app",
+        messages: [
+          { role: "system", content: "You are a friendly language teacher who writes graded reading practice. You always follow the output format exactly." },
+          { role: "user", content: storyPrompt },
+        ],
+      }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(res.status === 402 || res.status === 429 ? "лимит бесплатного сервиса" : `сервер ответил ${res.status}`);
+    const parsed = parseStoryReply(await res.text());
+    if (!parsed) throw new Error("ответ пришёл в неожиданном виде");
+    saveStory({ ...pending, ...parsed });
+  } catch (e) {
+    storyState = "error";
+    storyError = e && e.name === "AbortError" ? "сервис слишком долго не отвечает" : (e && e.message) || String(e);
+    storyPending = pending;
+    renderStory();
+  }
+}
+let storyPending = null;
+function saveStory(data) {
+  story = { ...data, createdAt: Date.now() };
+  storage.set(KEYS.story, JSON.stringify(story));
+  storyState = "idle";
+  storyShowTranslation = false;
+  renderStory();
+  $("story-scroll").scrollTop = 0;
+}
+
+function storyItems() {
+  return (story && story.items || []).map(id => words.find(w => w.id === id) || null);
+}
+function langTag() { return story && story.lang === "de" ? "de-DE" : "en-US"; }
+
+// Текст абзаца: отмеченные слова — кнопки с переводом, остальные слова озвучиваются по касанию
+function renderParagraph(text, items) {
+  const p = el("p");
+  const re = /\[\[([^\]|]+)\|(\d+)\]\]/g;
+  let last = 0, m;
+  const plain = chunk => {
+    const parts = chunk.split(/(\p{L}[\p{L}\p{M}'’-]*)/u);
+    for (let i = 0; i < parts.length; i++) {
+      if (!parts[i]) continue;
+      if (i % 2 === 1) {
+        const span = el("span", { class: "sw" }, parts[i]);
+        span.addEventListener("click", () => speak(parts[i], langTag()));
+        p.append(span);
+      } else {
+        p.append(parts[i]);
+      }
+    }
+  };
+  while ((m = re.exec(text))) {
+    plain(text.slice(last, m.index));
+    const used = m[1];
+    const w = items[Number(m[2]) - 1];
+    if (w) {
+      const b = el("button", { class: "tw", type: "button" }, used);
+      b.addEventListener("click", () => openWordSheet(w, used));
+      p.append(b);
+    } else {
+      plain(used);
+    }
+    last = re.lastIndex;
+  }
+  plain(text.slice(last));
+  return p;
+}
+
+function openWordSheet(w, used) {
+  const body = $("word-sheet-body");
+  const blocks = [
+    el("div", { class: "back-head" }, [el("h2", {}, w.english), speakButton(w.english, "en-US", "Произнести по-английски")]),
+    used && used.toLowerCase() !== w.english.toLowerCase()
+      ? el("div", { class: "tr-row" }, [el("p", { class: "used-as" }, `В истории: «${used}»`), speakButton(used, langTag(), "Произнести как в истории")])
+      : null,
+    el("div", { class: "tr" }, [el("p", { class: "tr-label" }, "по-русски"), el("p", { class: "tr-value" }, w.russian)]),
+    w.german ? el("div", { class: "tr" }, [
+      el("p", { class: "tr-label" }, "auf Deutsch"),
+      el("div", { class: "tr-row" }, [el("p", { class: "tr-value" }, w.german), speakButton(w.german, "de-DE", "Произнести по-немецки")]),
+    ]) : null,
+    (w.exampleEN || w.exampleDE) ? el("div", { class: "examples" }, [
+      w.exampleEN ? el("div", { class: "example-row" }, [el("p", { class: "example" }, w.exampleEN), speakButton(w.exampleEN, "en-US", "Произнести пример")]) : null,
+      w.exampleDE ? el("div", { class: "example-row" }, [el("p", { class: "example de" }, w.exampleDE), speakButton(w.exampleDE, "de-DE", "Произнести пример")]) : null,
+    ]) : null,
+    el("div", { class: "sheet-actions" }, [
+      known.has(w.id) ? el("button", { class: "btn secondary", type: "button", onclick: () => {
+        unmarkLearned(w);
+        $("word-sheet").close();
+        showToast("Слово вернулось в «Учить»");
+        renderStatus();
+      } }, "Не помню — вернуть в изучение") : null,
+      el("button", { class: "btn primary", type: "button", onclick: () => $("word-sheet").close() }, "Закрыть"),
+    ]),
+  ];
+  body.replaceChildren(...blocks.filter(Boolean));
+  $("word-sheet").showModal();
+}
+$("word-sheet").addEventListener("click", e => { if (e.target === $("word-sheet")) $("word-sheet").close(); });
+
+function speakStory() {
+  if (!story) return;
+  const text = story.story.replace(/\[\[([^\]|]+)\|\d+\]\]/g, "$1").replace(/\n+/g, " ");
+  speak(text, langTag());
+}
+
+function renderStoryLang() {
+  for (const b of $("story-lang").querySelectorAll("button")) {
+    b.setAttribute("aria-checked", String(b.dataset.lang === storyLang));
+  }
+}
+
+function renderStory() {
+  renderStoryLang();
+  const box = $("story");
+  const learned = learnedWords().length;
+  $("story-new").disabled = storyState === "loading" || learned < 3;
+
+  if (storyState === "loading") {
+    box.replaceChildren(el("div", { class: "story-empty" }, [
+      el("div", { class: "spinner", "aria-hidden": "true" }),
+      el("p", {}, "Пишу историю из ваших слов… Обычно это занимает 5–20 секунд."),
+    ]));
+    return;
+  }
+
+  if (storyState === "error") {
+    const area = el("textarea", { placeholder: "Вставьте сюда ответ ИИ", autocapitalize: "off", spellcheck: "false" });
+    box.replaceChildren(el("div", { class: "story-empty" }, [
+      el("h2", {}, "Не получилось написать историю"),
+      el("p", {}, `Причина: ${storyError}. Попробуйте ещё раз через минуту или сделайте историю в любом чате с ИИ, например в Claude.`),
+      el("div", { class: "story-fallback" }, [
+        el("button", { class: "btn primary", type: "button", onclick: generateStory }, "Попробовать ещё раз"),
+        el("button", { class: "btn secondary", type: "button", onclick: async () => {
+          try { await navigator.clipboard.writeText(storyPrompt); showToast("Задание скопировано"); }
+          catch { area.value = storyPrompt; area.select(); showToast("Скопируйте задание из поля ниже"); }
+        } }, "Скопировать задание для ИИ"),
+        area,
+        el("button", { class: "btn secondary", type: "button", onclick: () => {
+          const parsed = parseStoryReply(area.value);
+          if (!parsed) { showToast("Не нашёл в тексте историю с пометками [[…|N]]"); return; }
+          saveStory({ ...(storyPending || { lang: storyLang, items: [] }), ...parsed });
+        } }, "Показать вставленную историю"),
+      ]),
+    ]));
+    return;
+  }
+
+  if (!story) {
+    box.replaceChildren(el("div", { class: "story-empty" }, learned < 3 ? [
+      el("h2", {}, "Сначала выучите несколько слов"),
+      el("p", {}, `Для истории нужно хотя бы 3 выученных слова, сейчас ${learned}. Отмечайте слова кнопкой «Знаю».`),
+    ] : [
+      el("h2", {}, "История из ваших слов"),
+      el("p", {}, `Я соберу короткий рассказ из ${Math.min(STORY_WORDS, learned)} выученных слов. Нажмите на выделенное слово, чтобы увидеть перевод, на любое другое — чтобы услышать его.`),
+      el("button", { class: "btn primary", type: "button", onclick: generateStory }, "Написать историю"),
+    ]));
+    return;
+  }
+
+  const items = storyItems();
+  const found = items.filter(Boolean);
+  const paragraphs = story.story.split(/\n\s*\n|\n/).map(t => t.trim()).filter(Boolean);
+  const listenBtn = el("button", { class: "btn secondary", type: "button", onclick: speakStory }, "▶ Прослушать");
+  const stopBtn = el("button", { class: "btn secondary", type: "button", onclick: () => speechSynthesis.cancel() }, "■ Стоп");
+  const trBtn = story.translation ? el("button", { class: "btn secondary", type: "button", onclick: () => {
+    storyShowTranslation = !storyShowTranslation;
+    renderStory();
+  } }, storyShowTranslation ? "Скрыть перевод" : "Перевод") : null;
+
+  box.replaceChildren(...[
+    story.title ? el("h2", {}, story.title) : null,
+    el("p", { class: "story-meta" }, found.length
+      ? `Слова в истории: ${found.map(w => storyLangWord(w)).join(", ")}`
+      : "История"),
+    el("div", { class: "story-text" }, paragraphs.map(t => renderParagraph(t, items))),
+    el("div", { class: "story-actions" }, [listenBtn, stopBtn, trBtn].filter(Boolean)),
+    storyShowTranslation && story.translation ? el("p", { class: "story-translation" }, story.translation) : null,
+  ].filter(Boolean));
+}
+function storyLangWord(w) {
+  return story && story.lang === "de" && w.german ? w.german.split("/")[0].trim() : w.english;
+}
+
+$("story-new").addEventListener("click", generateStory);
+$("story-lang").addEventListener("click", e => {
+  const b = e.target.closest("button[data-lang]");
+  if (!b) return;
+  storyLang = b.dataset.lang;
+  storage.set(KEYS.storyLang, storyLang);
+  renderStoryLang();
 });
 
 /* ---------- Без масштабирования страницы ---------- */
@@ -1467,11 +2053,12 @@ document.addEventListener("touchmove", e => {
   const t = e.target;
   if (t.closest && t.closest("input, select, textarea")) return; // ползунок скорости и поля ввода
   // один палец двигает только то, что действительно прокручивается
-  const area = t.closest && t.closest(".face, .word-list, dialog");
+  const area = t.closest && t.closest(".face, .word-list, .story-scroll, dialog");
   if (!area || area.scrollHeight <= area.clientHeight + 1) e.preventDefault();
 }, { passive: false });
 
 /* ---------- Старт ---------- */
+reconcileToday();
 renderModes();
 next();
 renderAll();

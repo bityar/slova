@@ -1,6 +1,6 @@
 // Кэш приложения, чтобы оно открывалось без интернета.
 // После изменения index.html увеличьте номер версии.
-const CACHE = "slova-v14";
+const CACHE = "slova-v19";
 const IMAGE_CACHE = "slova-images"; // картинки к словам хранятся отдельно и не сбрасываются при обновлении
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
 
@@ -68,7 +68,8 @@ async function cachedImage(req) {
   if (hit) return hit;
   try {
     const res = await fetch(req.url, { mode: "cors", credentials: "omit" });
-    if (res.ok) cache.put(req.url, res.clone());
+    if (!res.ok) return Response.error(); // например, «Free limit reached»: не показываем картинку-заглушку
+    cache.put(req.url, res.clone());
     return res;
   } catch {
     // сайт не отдаёт CORS: показываем картинку без сохранения в кэш
