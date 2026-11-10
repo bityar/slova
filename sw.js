@@ -1,6 +1,6 @@
-// Кэш оболочки приложения, чтобы оно открывалось без интернета.
+// Кэш приложения, чтобы оно открывалось без интернета.
 // После изменения index.html увеличьте номер версии.
-const CACHE = "slova-v11";
+const CACHE = "slova-v12";
 const IMAGE_CACHE = "slova-images"; // картинки к словам хранятся отдельно и не сбрасываются при обновлении
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
 
@@ -25,12 +25,28 @@ self.addEventListener("fetch", event => {
   const isFont = url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com";
   const isImage = !isOwn && req.destination === "image";
 
+  // Сама страница: сначала из сети, чтобы обновления приходили сразу; без интернета — из кэша
+  if (isOwn && (req.mode === "navigate" || url.pathname.endsWith("/") || url.pathname.endsWith(".html"))) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      try {
+        const res = await fetch(req, { cache: "no-store" });
+        if (res.ok) cache.put("./index.html", res.clone());
+        return res;
+      } catch {
+        return (await cache.match("./index.html")) || (await cache.match("./")) || Response.error();
+      }
+    })());
+    return;
+  }
+
   if (isImage) {
     event.respondWith(cachedImage(req));
     return;
   }
   if (!isOwn && !isFont) return; // таблицу не трогаем: слова сохраняет само приложение
 
+  // Иконки, манифест, шрифты: из кэша, обновляются в фоне
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(req, { ignoreSearch: isOwn });
@@ -39,7 +55,7 @@ self.addEventListener("fetch", event => {
         if (res.ok || res.type === "opaque") cache.put(req, res.clone());
         return res;
       })
-      .catch(() => cached || (req.mode === "navigate" ? cache.match("./index.html") : Response.error()));
+      .catch(() => cached || Response.error());
     return cached || network;
   })());
 });
