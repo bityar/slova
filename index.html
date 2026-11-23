@@ -509,6 +509,11 @@
   .pack-tools .btn { flex: 1; min-height: 42px; font-size: 15px; border-radius: 12px; }
   .row-pack { margin: 3px 0 0; font-size: 12px; color: var(--accent); }
 
+  .added-bar { display: grid; gap: 8px; padding: 12px 14px; border-radius: 16px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+  .added-bar p { margin: 0; font-size: 14px; color: var(--muted); }
+  .lookup-loading { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; }
+  .lookup-loading .spinner { width: 18px; height: 18px; margin: 0; border-width: 2px; }
+
   /* Настройки */
   dialog {
     overflow-y: auto;
@@ -613,6 +618,14 @@
     </section>
 
     <section class="view" id="view-list" role="tabpanel" aria-labelledby="tab-list" hidden>
+      <div class="added-bar" id="added-bar" hidden>
+        <p id="added-text"></p>
+        <div class="pack-tools">
+          <button type="button" class="btn primary" id="added-sync" hidden>Записать в таблицу</button>
+          <button type="button" class="btn secondary" id="added-copy">Скопировать для таблицы</button>
+          <button type="button" class="btn secondary" id="added-clear">Очистить</button>
+        </div>
+      </div>
       <input class="search" type="search" id="search" placeholder="Поиск по словам" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <ul class="word-list" id="word-list"></ul>
     </section>
@@ -672,6 +685,11 @@
       <option value="off">Без картинок</option>
     </select>
     <p class="hint" id="image-hint"></p>
+    <label for="sheet-hook">Запись новых слов в таблицу</label>
+    <input class="select" id="sheet-hook" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Ссылка Apps Script, заканчивается на /exec">
+    <input class="select" id="sheet-secret" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Секрет из скрипта">
+    <button type="button" class="btn secondary" id="sheet-test">Проверить связь с таблицей</button>
+    <p class="hint">Если заполнить, слова, добавленные из историй, сразу дописываются в вашу Google Таблицу. Ссылка и секрет хранятся только на этом устройстве.</p>
     <label for="gemini-key">Ключ Gemini для историй</label>
     <input class="select" id="gemini-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Необязательно, но так надёжнее">
     <p class="hint">Бесплатно: войдите в aistudio.google.com через Google-аккаунт, нажмите «Get API key» и вставьте ключ сюда. Ключ хранится только на этом устройстве и отправляется только в Google.</p>
@@ -706,7 +724,7 @@
     <input class="range" type="range" id="rate" min="0.6" max="1.2" step="0.05">
     <p class="hint">Голоса с пометкой Enhanced или Premium звучат естественнее. Скачать их можно на iPhone: Настройки → Универсальный доступ → Устный контент → Голоса.</p>
     <p class="hint" id="updated-text"></p>
-    <p class="hint" id="version-text">Версия 23</p>
+    <p class="hint" id="version-text">Версия 25</p>
     <div class="sheet-actions">
       <button type="button" class="btn primary" id="save-btn">Сохранить и загрузить</button>
       <button type="button" class="btn secondary" id="close-btn">Закрыть</button>
@@ -723,7 +741,7 @@
    Если репозиторий публичный, лучше оставить пустой и ввести ссылку в приложении. */
 const DEFAULT_SHEET_URL = "";
 
-const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed", images: "wc.images", imageSource: "wc.imageSource", pics: "wc.pics", theme: "wc.theme", history: "wc.history", goal: "wc.goal", cardMode: "wc.cardMode", learnedOn: "wc.learnedOn", story: "wc.story", storyLang: "wc.storyLang", geminiKey: "wc.geminiKey", geminiModel: "wc.geminiModel", source: "wc.source", packs: "wc.packs" };
+const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed", images: "wc.images", imageSource: "wc.imageSource", pics: "wc.pics", theme: "wc.theme", history: "wc.history", goal: "wc.goal", cardMode: "wc.cardMode", learnedOn: "wc.learnedOn", story: "wc.story", storyLang: "wc.storyLang", geminiKey: "wc.geminiKey", geminiModel: "wc.geminiModel", source: "wc.source", packs: "wc.packs", added: "wc.added", lookups: "wc.lookups", sheetHook: "wc.sheetHook", sheetSecret: "wc.sheetSecret" };
 const AUTO_REFRESH_MS = 10 * 60 * 1000;
 
 const storage = {
@@ -816,6 +834,8 @@ try { packData = JSON.parse(document.getElementById("packs-data").textContent); 
 let wordSource = storage.get(KEYS.source, "own"); // own | packs | both
 let selectedPacks = safeJSON(storage.get(KEYS.packs, "[]"), []);
 let ownWords = parseWords(storage.get(KEYS.csv, ""));
+let addedWords = safeJSON(storage.get(KEYS.added, "[]"), []).filter(w => w && w.id && w.english);
+function saveAdded() { storage.set(KEYS.added, JSON.stringify(addedWords)); }
 let words = [];
 
 function allPacks() { return packData.groups.flatMap(g => g.packs); }
@@ -833,6 +853,7 @@ function rebuildWords() {
   const list = [];
   if (wordSource !== "packs") list.push(...ownWords);
   if (wordSource !== "own") list.push(...packWords());
+  list.push(...addedWords); // слова, добавленные из историй, учатся при любом выборе
   const seen = new Set();
   words = list.filter(w => !seen.has(w.id) && seen.add(w.id)); // одно слово — один прогресс
   if (!words.length) words = DEMO_WORDS.slice();
@@ -1452,7 +1473,57 @@ function renderStudy() {
 }
 
 /* ---------- Список ---------- */
+/* ---------- Запись слов в Google Таблицу через Apps Script ---------- */
+function sheetHookReady() {
+  return /^https:\/\/script\.google\.com\/.+\/exec$/i.test(storage.get(KEYS.sheetHook, "").trim()) && !!storage.get(KEYS.sheetSecret, "");
+}
+async function postToSheet(payload) {
+  const t = withTimeout(20000);
+  // text/plain — чтобы браузер не делал предварительный CORS-запрос, который Apps Script не поддерживает
+  const res = await fetch(storage.get(KEYS.sheetHook, "").trim(), {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ secret: storage.get(KEYS.sheetSecret, ""), ...payload }),
+    redirect: "follow",
+    signal: t.signal,
+  }).finally(t.done);
+  if (!res.ok) throw new Error(`ответ ${res.status}`);
+  let data = null;
+  try { data = await res.json(); } catch { throw new Error("скрипт ответил не JSON — проверьте, что выбран доступ «Anyone»"); }
+  if (!data.ok) throw new Error(data.error === "secret" ? "секрет не совпадает" : data.error || "ошибка скрипта");
+  return data;
+}
+async function syncWord(w) {
+  if (!sheetHookReady()) return false;
+  try {
+    const r = await postToSheet({ english: w.english, russian: w.russian, german: w.german, exampleEN: w.exampleEN, exampleDE: w.exampleDE });
+    w.synced = true;
+    saveAdded();
+    renderAddedBar();
+    return r.duplicate ? "duplicate" : true;
+  } catch {
+    return false;
+  }
+}
+async function syncAllAdded() {
+  const pending = addedWords.filter(w => !w.synced);
+  let ok = 0;
+  for (const w of pending) if (await syncWord(w)) ok++;
+  showToast(ok === pending.length ? `Записано в таблицу: ${ok}` : `Записано ${ok} из ${pending.length}. Проверьте настройки таблицы`);
+  renderAddedBar();
+}
+
+function renderAddedBar() {
+  const pending = addedWords.filter(w => !w.synced);
+  $("added-bar").hidden = pending.length === 0;
+  const auto = sheetHookReady();
+  $("added-text").textContent = auto
+    ? `Не записаны в таблицу: ${pending.length}. Нажмите «Записать в таблицу», чтобы попробовать ещё раз.`
+    : `Добавлено из историй: ${pending.length}. Скопируйте их в свою таблицу или настройте автоматическую запись в настройках.`;
+  $("added-sync").hidden = !auto;
+}
 function renderList() {
+  renderAddedBar();
   const q = $("search").value.trim().toLowerCase();
   const items = q ? words.filter(w => `${w.english} ${w.russian} ${w.german}`.toLowerCase().includes(q)) : words;
   const list = $("word-list");
@@ -1529,6 +1600,10 @@ async function refresh() {
     const parsed = parseWords(text);
     if (!parsed.length) throw new Error("в таблице не найдено слов");
     ownWords = parsed;
+    const inSheet = new Set(ownWords.map(w => w.id));
+    const before = addedWords.length;
+    addedWords = addedWords.filter(w => !(w.synced && inSheet.has(w.id)));
+    if (addedWords.length !== before) saveAdded();
     rebuildWords();
     storage.set(KEYS.csv, text);
     storage.set(KEYS.updated, String(Date.now()));
@@ -1549,6 +1624,8 @@ function openSettings() {
   $("only-unknown").checked = onlyUnknown;
   $("word-source").value = wordSource;
   $("gemini-key").value = storage.get(KEYS.geminiKey, "");
+  $("sheet-hook").value = storage.get(KEYS.sheetHook, "");
+  $("sheet-secret").value = storage.get(KEYS.sheetSecret, "");
   updatePacksButton();
   $("image-source").value = imageSource;
   $("image-hint").textContent = IMAGE_HINTS[imageSource] || "";
@@ -1833,6 +1910,20 @@ document.addEventListener("keydown", e => {
 $("refresh-btn").addEventListener("click", refresh);
 $("settings-btn").addEventListener("click", openSettings);
 $("search").addEventListener("input", renderList);
+$("added-sync").addEventListener("click", syncAllAdded);
+$("added-copy").addEventListener("click", async () => {
+  // строки для вставки в таблицу: English, Russian, German, Example (EN), Beispiel (DE)
+  const tsv = addedWords.filter(w => !w.synced).map(w => [w.english, w.russian, w.german, w.exampleEN, w.exampleDE]
+    .map(v => String(v || "").replace(/[\t\n]+/g, " ")).join("\t")).join("\n");
+  try { await navigator.clipboard.writeText(tsv); showToast("Скопировано. Вставьте в первую пустую строку таблицы"); }
+  catch { showToast("Не получилось скопировать"); }
+});
+$("added-clear").addEventListener("click", () => {
+  if (!confirm("Убрать все слова, добавленные из историй? Прогресс по ним сохранится.")) return;
+  addedWords = [];
+  saveAdded();
+  wordsChanged();
+});
 
 function showView(name) {
   const view = name === "list" || name === "story" ? name : "study";
@@ -1901,6 +1992,24 @@ function openPacks() {
   $("packs-dialog").showModal();
 }
 $("packs-btn").addEventListener("click", openPacks);
+$("sheet-hook").addEventListener("change", e => storage.set(KEYS.sheetHook, e.target.value.trim()));
+$("sheet-secret").addEventListener("change", e => storage.set(KEYS.sheetSecret, e.target.value.trim()));
+$("sheet-test").addEventListener("click", async () => {
+  storage.set(KEYS.sheetHook, $("sheet-hook").value.trim());
+  storage.set(KEYS.sheetSecret, $("sheet-secret").value.trim());
+  if (!sheetHookReady()) { showToast("Вставьте ссылку на /exec и секрет"); return; }
+  $("sheet-test").disabled = true;
+  $("sheet-test").textContent = "Проверяю…";
+  try {
+    await postToSheet({ ping: true });
+    showToast("Связь с таблицей есть ✓");
+  } catch (e) {
+    showToast(`Не получилось: ${e.message}`);
+  } finally {
+    $("sheet-test").disabled = false;
+    $("sheet-test").textContent = "Проверить связь с таблицей";
+  }
+});
 $("gemini-key").addEventListener("change", e => {
   storage.set(KEYS.geminiKey, e.target.value.trim());
   geminiModels = null;
@@ -2147,8 +2256,13 @@ function shownVersion() { return story ? story[shownLang()] : null; }
 function langTag() { return shownLang() === "de" ? "de-DE" : "en-US"; }
 
 // Текст абзаца: отмеченные слова — кнопки с переводом, остальные слова озвучиваются по касанию
+function sentenceWith(text, word) {
+  const sentences = text.match(/[^.!?…]+[.!?…]*/g) || [text];
+  return (sentences.find(s => s.includes(word)) || text).trim();
+}
 function renderParagraph(text, items) {
   const p = el("p");
+  const plainText = text.replace(/\[\[([^\]|]+)\|\d+\]\]/g, "$1");
   const re = /\[\[([^\]|]+)\|(\d+)\]\]/g;
   let last = 0, m;
   const plain = chunk => {
@@ -2157,7 +2271,7 @@ function renderParagraph(text, items) {
       if (!parts[i]) continue;
       if (i % 2 === 1) {
         const span = el("span", { class: "sw" }, parts[i]);
-        span.addEventListener("click", () => speak(parts[i], langTag()));
+        span.addEventListener("click", () => openLookupSheet(parts[i], sentenceWith(plainText, parts[i])));
         p.append(span);
       } else {
         p.append(parts[i]);
@@ -2268,7 +2382,7 @@ function renderStory() {
       el("p", {}, `Для истории нужно хотя бы 3 выученных слова, сейчас ${learned}. Отмечайте слова кнопкой «Знаю».`),
     ] : [
       el("h2", {}, "История из ваших слов"),
-      el("p", {}, `Я соберу короткий рассказ из ${Math.min(STORY_WORDS, learned)} выученных слов. Нажмите на выделенное слово, чтобы увидеть перевод, на любое другое — чтобы услышать его.`),
+      el("p", {}, `Я соберу короткий рассказ из ${Math.min(STORY_WORDS, learned)} выученных слов. Нажмите на выделенное слово, чтобы открыть его карточку, а на любое другое — чтобы увидеть перевод и добавить его в изучение.`),
       el("button", { class: "btn primary", type: "button", onclick: generateStory }, "Написать историю"),
     ]));
     return;
@@ -2310,6 +2424,150 @@ $("story-lang").addEventListener("click", e => {
   speechSynthesis.cancel();
   renderStory();
 });
+
+/* ---------- Перевод любого слова из истории ---------- */
+// С ключом Gemini: перевод на три языка по смыслу в этом предложении и новые примеры.
+// Без ключа: только перевод через бесплатный MyMemory, без примеров.
+let lookups = safeObject(storage.get(KEYS.lookups, "{}"));
+function saveLookup(key, value) {
+  lookups[key] = value;
+  const keys = Object.keys(lookups);
+  for (const k of keys.slice(0, Math.max(0, keys.length - 300))) delete lookups[k];
+  storage.set(KEYS.lookups, JSON.stringify(lookups));
+}
+
+async function lookupWithGemini(key, word, sentence, lang) {
+  const language = lang === "de" ? "German" : "English";
+  const prompt = `The ${language} word "${word}" appears in this sentence: "${sentence}".
+Explain it for a Russian-speaking learner of English and German, with the meaning it has in this sentence.
+Return ONLY valid JSON:
+{"english": "English dictionary form (verbs without 'to')", "german": "German dictionary form; nouns MUST have the nominative article der/die/das", "russian": "1–3 short Russian translations separated by ' / '", "exampleEN": "a new short natural English example sentence with this word", "exampleDE": "the same example sentence in German"}`;
+  const raw = await callGemini(key, "You are a precise bilingual dictionary. You always return valid JSON only.", prompt);
+  const start = raw.indexOf("{"), end = raw.lastIndexOf("}");
+  const data = JSON.parse(raw.slice(start, end + 1));
+  if (!data.english || !data.russian) throw new Error("неполный ответ");
+  return {
+    english: String(data.english).trim(), german: String(data.german || "").trim(), russian: String(data.russian).trim(),
+    exampleEN: String(data.exampleEN || "").trim(), exampleDE: String(data.exampleDE || "").trim(),
+  };
+}
+
+async function myMemory(text, pair) {
+  const t = withTimeout(8000);
+  const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${pair}`, { signal: t.signal }).finally(t.done);
+  if (!res.ok) throw new Error(`перевод ${res.status}`);
+  const data = await res.json();
+  return String((data.responseData && data.responseData.translatedText) || "").trim();
+}
+async function lookupWithMyMemory(word, lang) {
+  const src = lang === "de" ? "de" : "en";
+  const other = src === "en" ? "de" : "en";
+  const [toOther, toRu] = await Promise.all([myMemory(word, `${src}|${other}`), myMemory(word, `${src}|ru`)]);
+  return {
+    english: src === "en" ? word : toOther, german: src === "de" ? word : toOther, russian: toRu,
+    exampleEN: "", exampleDE: "",
+  };
+}
+
+async function lookupWord(word, sentence, lang) {
+  const cacheKey = `${lang}:${word.toLowerCase()}:${sentence.length > 0 ? sentence.slice(0, 60) : ""}`;
+  if (lookups[cacheKey]) return lookups[cacheKey];
+  const key = storage.get(KEYS.geminiKey, "").trim();
+  let result;
+  if (key) {
+    try { result = await lookupWithGemini(key, word, sentence, lang); }
+    catch { result = await lookupWithMyMemory(word, lang); } // Gemini перегружен — хотя бы перевод
+  } else {
+    result = await lookupWithMyMemory(word, lang);
+  }
+  saveLookup(cacheKey, result);
+  return result;
+}
+
+function capitalize(t) { return t ? t[0].toUpperCase() + t.slice(1) : t; }
+
+function openLookupSheet(word, sentence) {
+  const lang = shownLang();
+  const tag = lang === "de" ? "de-DE" : "en-US";
+  const body = $("word-sheet-body");
+  const head = el("div", { class: "back-head" }, [el("h2", {}, word), speakButton(word, tag, "Произнести")]);
+  body.replaceChildren(
+    head,
+    el("div", { class: "lookup-loading" }, [el("div", { class: "spinner", "aria-hidden": "true" }), "Ищу перевод…"]),
+    el("div", { class: "sheet-actions" }, [el("button", { class: "btn primary", type: "button", onclick: () => $("word-sheet").close() }, "Закрыть")]),
+  );
+  $("word-sheet").showModal();
+  const token = {};
+  $("word-sheet")._lookup = token;
+
+  lookupWord(word, sentence, lang).then(r => {
+    if ($("word-sheet")._lookup !== token || !$("word-sheet").open) return;
+    const english = capitalize(r.english);
+    const id = english.toLowerCase();
+    const existing = words.find(w => w.id === id && !w.demo);
+    const isAdded = addedWords.some(w => w.id === id);
+    const row = (label, value, speakText, speakTag) => value ? el("div", { class: "tr" }, [
+      el("p", { class: "tr-label" }, label),
+      el("div", { class: "tr-row" }, [el("p", { class: "tr-value" }, value), speakText ? speakButton(speakText, speakTag, `Произнести: ${label}`) : null].filter(Boolean)),
+    ]) : null;
+
+    let action;
+    if (existing && !isAdded) {
+      action = el("button", { class: "btn secondary", type: "button", disabled: "" }, "Уже в списке изучения");
+    } else if (isAdded) {
+      action = el("button", { class: "btn secondary", type: "button", onclick: () => {
+        addedWords = addedWords.filter(w => w.id !== id);
+        saveAdded();
+        wordsChanged();
+        $("word-sheet").close();
+        showToast("Слово убрано из изучения");
+      } }, "Убрать из изучения");
+    } else {
+      action = el("button", { class: "btn primary", type: "button", onclick: () => {
+        const added = { id, english, russian: r.russian, german: r.german, exampleEN: r.exampleEN, exampleDE: r.exampleDE, image: "", pack: "Добавлено из истории" };
+        addedWords.push(added);
+        saveAdded();
+        wordsChanged();
+        $("word-sheet").close();
+        if (sheetHookReady()) {
+          showToast(`«${english}» добавлено, записываю в таблицу…`);
+          syncWord(added).then(ok => showToast(ok
+            ? `«${english}» записано в таблицу`
+            : `«${english}» в изучении, но в таблицу записать не удалось`));
+        } else {
+          showToast(`«${english}» добавлено в изучение`);
+        }
+      } }, "Добавить в изучение");
+    }
+
+    body.replaceChildren(...[
+      head,
+      word.toLowerCase() !== (lang === "de" ? r.german : r.english).toLowerCase()
+        ? el("p", { class: "used-as" }, `Словарная форма: ${lang === "de" ? r.german : english}`) : null,
+      row("по-английски", english, r.english, "en-US"),
+      row("auf Deutsch", r.german, r.german, "de-DE"),
+      row("по-русски", r.russian),
+      (r.exampleEN || r.exampleDE) ? el("div", { class: "examples" }, [
+        r.exampleEN ? el("div", { class: "example-row" }, [el("p", { class: "example" }, r.exampleEN), speakButton(r.exampleEN, "en-US", "Произнести пример")]) : null,
+        r.exampleDE ? el("div", { class: "example-row" }, [el("p", { class: "example de" }, r.exampleDE), speakButton(r.exampleDE, "de-DE", "Произнести пример")]) : null,
+      ]) : el("p", { class: "hint" }, "Примеры предложений появляются, если добавить ключ Gemini в настройках."),
+      el("div", { class: "sheet-actions" }, [
+        action,
+        el("button", { class: "btn secondary", type: "button", onclick: () => $("word-sheet").close() }, "Закрыть"),
+      ]),
+    ].filter(Boolean));
+  }).catch(() => {
+    if ($("word-sheet")._lookup !== token || !$("word-sheet").open) return;
+    body.replaceChildren(
+      head,
+      el("p", { class: "hint" }, "Не получилось найти перевод. Проверьте интернет и попробуйте ещё раз."),
+      el("div", { class: "sheet-actions" }, [
+        el("button", { class: "btn secondary", type: "button", onclick: () => openLookupSheet(word, sentence) }, "Попробовать ещё раз"),
+        el("button", { class: "btn primary", type: "button", onclick: () => $("word-sheet").close() }, "Закрыть"),
+      ]),
+    );
+  });
+}
 
 /* ---------- Без масштабирования страницы ---------- */
 for (const type of ["gesturestart", "gesturechange", "gestureend"]) {
