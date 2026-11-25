@@ -537,6 +537,48 @@
     background: color-mix(in srgb, var(--accent) 14%, transparent);
   }
 
+  /* Напоминание о целях */
+  .brief {
+    position: fixed;
+    left: 50%;
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    z-index: 30;
+    width: min(528px, calc(100% - 24px));
+    padding: 16px 16px 14px;
+    border-radius: 22px;
+    background: var(--surface);
+    box-shadow: 0 0 0 2px var(--accent), 0 18px 50px rgba(0, 0, 0, .4);
+    transform: translateX(-50%);
+    animation: brief-drop .5s cubic-bezier(.2, .9, .3, 1.15);
+  }
+  @keyframes brief-drop {
+    from { transform: translate(-50%, -140%); }
+    to { transform: translate(-50%, 0); }
+  }
+  .brief-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .brief-emoji { font-size: 26px; line-height: 1; }
+  .brief-head h2 { flex: 1; margin: 0; font-size: 1.15rem; letter-spacing: -0.01em; }
+  .brief-close {
+    width: 34px; height: 34px;
+    flex: none;
+    border: 0;
+    border-radius: 50%;
+    background: var(--line);
+    color: var(--ink);
+    font-size: 20px;
+    line-height: 1;
+  }
+  .brief-lines { display: grid; gap: 8px; margin-bottom: 10px; }
+  .brief-line { display: grid; gap: 4px; }
+  .brief-line-top { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; }
+  .brief-line-top span { color: var(--muted); white-space: nowrap; }
+  .brief-line.done .brief-line-top span { color: var(--known); font-weight: 600; }
+  .brief-streak { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+  .brief-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .brief-actions .btn { min-height: 46px; font-size: 16px; border-radius: 14px; }
+  .brief-actions .btn:only-child { grid-column: 1 / -1; }
+  @media (prefers-reduced-motion: reduce) { .brief { animation: none; } }
+
   /* Настройки */
   dialog {
     overflow-y: auto;
@@ -678,6 +720,17 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<div class="brief" id="brief" role="alertdialog" aria-labelledby="brief-title" hidden>
+  <div class="brief-head">
+    <span class="brief-emoji" aria-hidden="true">📚</span>
+    <h2 id="brief-title">На сегодня осталось</h2>
+    <button type="button" class="brief-close" id="brief-close" aria-label="Закрыть напоминание">×</button>
+  </div>
+  <div class="brief-lines" id="brief-lines"></div>
+  <p class="brief-streak" id="brief-streak"></p>
+  <div class="brief-actions" id="brief-actions"></div>
+</div>
+
 <dialog id="packs-dialog" aria-labelledby="packs-title">
   <div class="packs-body">
     <h2 id="packs-title">Наборы слов</h2>
@@ -766,7 +819,7 @@
     <input class="range" type="range" id="rate" min="0.6" max="1.2" step="0.05">
     <p class="hint">Голоса с пометкой Enhanced или Premium звучат естественнее. Скачать их можно на iPhone: Настройки → Универсальный доступ → Устный контент → Голоса.</p>
     <p class="hint" id="updated-text"></p>
-    <p class="hint" id="version-text">Версия 27</p>
+    <p class="hint" id="version-text">Версия 28</p>
     <div class="sheet-actions">
       <button type="button" class="btn primary" id="save-btn">Сохранить и загрузить</button>
       <button type="button" class="btn secondary" id="close-btn">Закрыть</button>
@@ -1687,6 +1740,7 @@ function renderStatus() {
   $("status-text").textContent = demo || !total ? ""
     : inReview ? `Выучено ${learned} из ${total}, на повторении ${reviewPool().length}`
     : `Выучено ${learned} из ${total}`;
+  if (!$("brief").hidden) renderBrief();
   $("error-text").hidden = !errorText;
   $("error-text").textContent = errorText;
   $("refresh-btn").classList.toggle("spinning", loading);
@@ -2074,20 +2128,56 @@ $("tab-list").addEventListener("click", () => showView("list"));
 $("tab-story").addEventListener("click", () => showView("story"));
 
 // При открытии приложения (не чаще раза в 2 часа) — напоминание, что осталось на сегодня
-function showDailyBrief() {
-  if (isDemo()) return;
+function briefDue() {
+  if (isDemo()) return false;
   const last = Number(storage.get(KEYS.lastBrief, "0"));
-  if (Date.now() - last < 2 * 60 * 60 * 1000) return;
+  if (Date.now() - last < 2 * 60 * 60 * 1000) return false;
+  const met = goalsMet(todayStats());
+  return !(met.learn && met.review);
+}
+// Карточка-напоминание сверху: висит, пока её не закрыть, и обновляется по ходу занятия
+function renderBrief() {
   const h = todayStats();
   const met = goalsMet(h);
-  if (met.learn && met.review) return;
-  storage.set(KEYS.lastBrief, String(Date.now()));
-  const parts = [];
-  if (!met.learn) parts.push(`новые слова ${h.learned || 0} из ${dailyGoal}`);
-  if (!met.review) parts.push(`повторение ${h.reviewed || 0} из ${reviewGoal}`);
+  if (met.learn && met.review) { closeBrief(false); return; }
+  const line = (title, count, goal, isMet) => el("div", { class: `brief-line${isMet ? " done" : ""}` }, [
+    el("div", { class: "brief-line-top" }, [
+      el("b", {}, title),
+      el("span", {}, goal === 0 ? "без цели" : isMet ? "готово ✓" : `${count} из ${goal} · ещё ${goal - count}`),
+    ]),
+    el("div", { class: "progress", "aria-hidden": "true" }, el("div", {
+      class: `progress-fill${isMet ? " done" : ""}`,
+      style: `width:${goal === 0 ? 0 : Math.min(1, isMet ? 1 : count / goal) * 100}%`,
+    })),
+  ]);
+  $("brief-lines").replaceChildren(
+    line("Новые слова", h.learned || 0, dailyGoal, met.learn),
+    line("Повторение", h.reviewed || 0, reviewGoal, met.review),
+  );
   const streak = streakDays();
-  showToast(`На сегодня: ${parts.join(", ")}` + (streak ? `. Серия ${streak} ${plural(streak, "день", "дня", "дней")} 🔥` : ""));
+  $("brief-streak").textContent = streak
+    ? `🔥 Серия ${streak} ${plural(streak, "день", "дня", "дней")} — выполните обе цели, чтобы её продолжить`
+    : "🔥 Выполните обе цели и начните серию";
+  const go = view => () => { closeBrief(true); showView(view); };
+  $("brief-actions").replaceChildren(...[
+    !met.learn ? el("button", { class: "btn primary", type: "button", onclick: go("learn") }, "Учить новые") : null,
+    !met.review ? el("button", { class: `btn ${met.learn ? "primary" : "secondary"}`, type: "button", onclick: go("review") }, "Повторить") : null,
+  ].filter(Boolean));
 }
+function openBrief() {
+  renderBrief();
+  if (!goalsMet(todayStats()).learn || !goalsMet(todayStats()).review) $("brief").hidden = false;
+}
+function closeBrief(remember) {
+  if ($("brief").hidden) return;
+  $("brief").hidden = true;
+  if (remember) storage.set(KEYS.lastBrief, String(Date.now()));
+}
+function showDailyBrief() {
+  if (!$("brief").hidden || !briefDue()) return;
+  openBrief();
+}
+$("brief-close").addEventListener("click", () => closeBrief(true));
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible") return;
   renderStatus();
