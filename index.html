@@ -149,6 +149,13 @@
   .progress-fill.done { background: var(--known); }
   .status-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
   .goal-text { margin: 0; font-size: 14px; font-weight: 600; }
+  .goals { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .goal { display: grid; gap: 5px; }
+  .goal-head { display: flex; justify-content: space-between; gap: 6px; font-size: 13px; }
+  .goal-head b { font-weight: 600; }
+  .goal-head span { color: var(--muted); white-space: nowrap; }
+  .goal.done .goal-head span { color: var(--known); font-weight: 600; }
+  .goal.off { opacity: .45; }
   .streak { margin: 0; font-size: 14px; font-weight: 600; white-space: nowrap; }
   .status-text { margin: 0; font-size: 13px; color: var(--muted); }
   .error { margin: 0; font-size: 13px; color: var(--danger); }
@@ -601,9 +608,18 @@
   </header>
 
   <div class="status">
-    <div class="progress" aria-hidden="true"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="goals" id="goals">
+      <div class="goal" id="goal-learn">
+        <div class="goal-head"><b>Новые слова</b><span id="goal-learn-text"></span></div>
+        <div class="progress" aria-hidden="true"><div class="progress-fill" id="goal-learn-fill"></div></div>
+      </div>
+      <div class="goal" id="goal-review">
+        <div class="goal-head"><b>Повторение</b><span id="goal-review-text"></span></div>
+        <div class="progress" aria-hidden="true"><div class="progress-fill" id="goal-review-fill"></div></div>
+      </div>
+    </div>
     <div class="status-row">
-      <p class="goal-text" id="goal-text"></p>
+      <p class="goal-text" id="goal-text" hidden></p>
       <p class="streak" id="streak" hidden></p>
     </div>
     <p class="status-text" id="status-text"></p>
@@ -709,16 +725,26 @@
     <label for="gemini-key">Ключ Gemini для историй</label>
     <input class="select" id="gemini-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Необязательно, но так надёжнее">
     <p class="hint">Бесплатно: войдите в aistudio.google.com через Google-аккаунт, нажмите «Get API key» и вставьте ключ сюда. Ключ хранится только на этом устройстве и отправляется только в Google.</p>
-    <label for="goal-select">Цель на день</label>
+    <label for="goal-select">Новых слов в день</label>
     <select class="select" id="goal-select">
-      <option value="5">5 карточек</option>
-      <option value="10">10 карточек</option>
-      <option value="15">15 карточек</option>
-      <option value="20">20 карточек</option>
-      <option value="30">30 карточек</option>
-      <option value="50">50 карточек</option>
+      <option value="0">Без цели</option>
+      <option value="3">3 слова</option>
+      <option value="5">5 слов</option>
+      <option value="10">10 слов</option>
+      <option value="15">15 слов</option>
+      <option value="20">20 слов</option>
+      <option value="30">30 слов</option>
     </select>
-    <p class="hint">Считаются новые выученные слова и повторения. День засчитывается в серию, когда цель выполнена.</p>
+    <label for="review-goal-select">Повторений в день</label>
+    <select class="select" id="review-goal-select">
+      <option value="0">Без цели</option>
+      <option value="5">5 повторений</option>
+      <option value="10">10 повторений</option>
+      <option value="20">20 повторений</option>
+      <option value="30">30 повторений</option>
+      <option value="50">50 повторений</option>
+    </select>
+    <p class="hint">Новые слова — это отметка «Знаю» на вкладке «Учить». Повторения — «Помню» или «Забыл» на вкладке «Повтор». День засчитывается в серию, когда выполнены обе цели. Если новых слов или слов для повторения не осталось, эта цель считается выполненной.</p>
     <label for="theme-select">Оформление</label>
     <select class="select" id="theme-select">
       <option value="auto">Как в системе</option>
@@ -740,7 +766,7 @@
     <input class="range" type="range" id="rate" min="0.6" max="1.2" step="0.05">
     <p class="hint">Голоса с пометкой Enhanced или Premium звучат естественнее. Скачать их можно на iPhone: Настройки → Универсальный доступ → Устный контент → Голоса.</p>
     <p class="hint" id="updated-text"></p>
-    <p class="hint" id="version-text">Версия 26</p>
+    <p class="hint" id="version-text">Версия 27</p>
     <div class="sheet-actions">
       <button type="button" class="btn primary" id="save-btn">Сохранить и загрузить</button>
       <button type="button" class="btn secondary" id="close-btn">Закрыть</button>
@@ -757,7 +783,7 @@
    Если репозиторий публичный, лучше оставить пустой и ввести ссылку в приложении. */
 const DEFAULT_SHEET_URL = "";
 
-const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed", images: "wc.images", imageSource: "wc.imageSource", pics: "wc.pics", theme: "wc.theme", history: "wc.history", goal: "wc.goal", cardMode: "wc.cardMode", learnedOn: "wc.learnedOn", story: "wc.story", storyLang: "wc.storyLang", geminiKey: "wc.geminiKey", geminiModel: "wc.geminiModel", source: "wc.source", packs: "wc.packs", added: "wc.added", lookups: "wc.lookups", sheetHook: "wc.sheetHook", sheetSecret: "wc.sheetSecret" };
+const KEYS = { url: "wc.url", csv: "wc.csv", known: "wc.known", updated: "wc.updated", onlyUnknown: "wc.onlyUnknown", voiceEN: "wc.voiceEN", voiceDE: "wc.voiceDE", rate: "wc.rate", reviewed: "wc.reviewed", images: "wc.images", imageSource: "wc.imageSource", pics: "wc.pics", theme: "wc.theme", history: "wc.history", goal: "wc.goal", cardMode: "wc.cardMode", learnedOn: "wc.learnedOn", reviewGoal: "wc.reviewGoal", lastBrief: "wc.lastBrief", story: "wc.story", storyLang: "wc.storyLang", geminiKey: "wc.geminiKey", geminiModel: "wc.geminiModel", source: "wc.source", packs: "wc.packs", added: "wc.added", lookups: "wc.lookups", sheetHook: "wc.sheetHook", sheetSecret: "wc.sheetSecret" };
 const AUTO_REFRESH_MS = 10 * 60 * 1000;
 
 const storage = {
@@ -884,7 +910,10 @@ let reviewed = safeObject(storage.get(KEYS.reviewed, "{}"));
 let imageSource = storage.get(KEYS.imageSource, storage.get(KEYS.images, "1") === "0" ? "off" : "photo");
 let picMap = safeObject(storage.get(KEYS.pics, "{}")); // найденные фото по словам
 let history = safeObject(storage.get(KEYS.history, "{}"));
-let dailyGoal = Number(storage.get(KEYS.goal, "10")) || 10;
+// Две отдельные цели: новые слова и повторения (0 — без цели)
+const numOr = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+let dailyGoal = numOr(storage.get(KEYS.goal, "10"), 10);
+let reviewGoal = numOr(storage.get(KEYS.reviewGoal, "20"), 20);
 let learnedOn = safeObject(storage.get(KEYS.learnedOn, "{}")); // в какой день слово отмечено «Знаю»
 let cardMode = storage.get(KEYS.cardMode, "word"); // "word" | "reverse" | "cloze" | "mix"
 let currentFace = "word";
@@ -916,11 +945,36 @@ function dayKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 function dayStats(key = dayKey()) {
-  return history[key] || { learned: 0, reviewed: 0, goal: dailyGoal };
+  return history[key] || { learned: 0, reviewed: 0 };
+}
+// Сохраняем для дня цели и то, оставалось ли что учить/повторять — чтобы серия считалась честно
+function stampToday(h) {
+  h.learnGoal = dailyGoal;
+  h.reviewGoal = reviewGoal;
+  h.noLearn = toLearn().filter(w => !w.demo).length === 0;
+  h.noReview = reviewPool().length === 0;
+  return h;
+}
+function goalsMet(h) {
+  if (!h) return { learn: false, review: false };
+  if (h.learnGoal === undefined) { // день из прежней версии: одна общая цель
+    const all = (h.learned || 0) + (h.reviewed || 0) >= (h.goal || 10);
+    return { learn: all, review: all };
+  }
+  return {
+    learn: (h.learned || 0) >= h.learnGoal || !!h.noLearn,
+    review: (h.reviewed || 0) >= h.reviewGoal || !!h.noReview,
+  };
+}
+function todayStats() {
+  const h = stampToday({ ...dayStats() });
+  return h;
 }
 function dayDone(key) {
-  const h = history[key];
-  return !!h && (h.learned || 0) + (h.reviewed || 0) >= (h.goal || dailyGoal);
+  const h = key === dayKey() ? todayStats() : history[key];
+  const met = goalsMet(h);
+  const any = h && ((h.learned || 0) + (h.reviewed || 0) > 0 || (h.learnGoal === 0 && h.reviewGoal === 0));
+  return !!h && met.learn && met.review && !!any;
 }
 function streakDays() {
   const d = new Date();
@@ -931,17 +985,24 @@ function streakDays() {
 }
 function bump(field) {
   const key = dayKey();
+  const before = goalsMet(todayStats());
   const h = { ...dayStats(key) };
-  const before = (h.learned || 0) + (h.reviewed || 0);
   h[field] = (h[field] || 0) + 1;
-  h.goal = dailyGoal;
-  history[key] = h;
+  history[key] = stampToday(h);
   const keys = Object.keys(history).sort();
   for (const k of keys.slice(0, Math.max(0, keys.length - 400))) delete history[k];
   storage.set(KEYS.history, JSON.stringify(history));
-  if (before < dailyGoal && before + 1 >= dailyGoal) {
-    const n = streakDays();
-    showToast(n > 1 ? `Цель выполнена! ${n} ${plural(n, "день", "дня", "дней")} подряд 🔥` : "Цель на сегодня выполнена! 🎉");
+  const after = goalsMet(history[key]);
+  const both = after.learn && after.review;
+  if ((!before.learn && after.learn) || (!before.review && after.review)) {
+    if (both) {
+      const n = streakDays();
+      showToast(n > 1 ? `Обе цели выполнены! ${n} ${plural(n, "день", "дня", "дней")} подряд 🔥` : "Обе цели на сегодня выполнены! 🎉");
+    } else if (!before.learn && after.learn) {
+      showToast("Цель по новым словам выполнена ✓ Осталось повторение");
+    } else {
+      showToast("Цель по повторению выполнена ✓ Осталось выучить новые слова");
+    }
   }
 }
 function saveHistory() { storage.set(KEYS.history, JSON.stringify(history)); }
@@ -1599,20 +1660,32 @@ function renderList() {
 function renderStatus() {
   const total = words.length;
   const learned = total - toLearn().length;
-  const today = dayStats();
-  const done = (today.learned || 0) + (today.reviewed || 0);
+  const today = todayStats();
+  const met = goalsMet(today);
   const demo = isDemo();
-  $("progress-fill").style.width = `${Math.min(1, done / dailyGoal) * 100}%`;
-  $("progress-fill").classList.toggle("done", done >= dailyGoal);
+  $("goals").hidden = demo;
+  $("goal-text").hidden = !demo;
   $("goal-text").textContent = demo
     ? (needsPacks() ? "Это пример карточки. Выберите наборы слов в настройках." : "Это пример карточки. Ваши слова появятся после загрузки таблицы.")
-    : done >= dailyGoal ? `Цель выполнена: ${done} из ${dailyGoal}` : `Сегодня ${done} из ${dailyGoal}`;
+    : "";
+  const paint = (id, count, goal, isMet, emptyText) => {
+    const off = goal === 0;
+    $(`goal-${id}`).classList.toggle("off", off);
+    $(`goal-${id}`).classList.toggle("done", !off && isMet);
+    $(`goal-${id}-fill`).classList.toggle("done", !off && isMet);
+    $(`goal-${id}-fill`).style.width = off ? "0" : `${Math.min(1, isMet ? 1 : count / goal) * 100}%`;
+    $(`goal-${id}-text`).textContent = off ? "без цели"
+      : count < goal && isMet ? emptyText
+      : `${count} из ${goal}${isMet ? " ✓" : ""}`;
+  };
+  paint("learn", today.learned || 0, dailyGoal, met.learn, "все выучены ✓");
+  paint("review", today.reviewed || 0, reviewGoal, met.review, "нечего ✓");
   const streak = streakDays();
   $("streak").hidden = demo || streak === 0;
   $("streak").textContent = `🔥 ${streak} ${plural(streak, "день", "дня", "дней")} подряд`;
   const inReview = mode === "review" && !$("view-study").hidden;
   $("status-text").textContent = demo || !total ? ""
-    : inReview ? `Выучено ${learned} из ${total}, сегодня повторено ${today.reviewed || 0}`
+    : inReview ? `Выучено ${learned} из ${total}, на повторении ${reviewPool().length}`
     : `Выучено ${learned} из ${total}`;
   $("error-text").hidden = !errorText;
   $("error-text").textContent = errorText;
@@ -1671,6 +1744,7 @@ function openSettings() {
   $("image-hint").textContent = IMAGE_HINTS[imageSource] || "";
   $("theme-select").value = storage.get(KEYS.theme, "auto");
   $("goal-select").value = String(dailyGoal);
+  $("review-goal-select").value = String(reviewGoal);
   const updated = Number(storage.get(KEYS.updated, "0"));
   $("updated-text").textContent = updated
     ? `Последнее обновление: ${new Date(updated).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}`
@@ -1755,12 +1829,20 @@ function applyTheme(theme) {
   }
 }
 applyTheme(storage.get(KEYS.theme, "auto"));
-$("goal-select").addEventListener("change", e => {
-  dailyGoal = Number(e.target.value) || 10;
-  storage.set(KEYS.goal, String(dailyGoal));
+function goalsChanged() {
   const key = dayKey();
-  if (history[key]) { history[key].goal = dailyGoal; storage.set(KEYS.history, JSON.stringify(history)); }
+  if (history[key]) { history[key] = stampToday(history[key]); saveHistory(); }
   renderStatus();
+}
+$("goal-select").addEventListener("change", e => {
+  dailyGoal = numOr(e.target.value, 10);
+  storage.set(KEYS.goal, String(dailyGoal));
+  goalsChanged();
+});
+$("review-goal-select").addEventListener("change", e => {
+  reviewGoal = numOr(e.target.value, 20);
+  storage.set(KEYS.reviewGoal, String(reviewGoal));
+  goalsChanged();
 });
 $("theme-select").addEventListener("change", e => {
   storage.set(KEYS.theme, e.target.value);
@@ -1991,8 +2073,25 @@ $("tab-review").addEventListener("click", () => showView("review"));
 $("tab-list").addEventListener("click", () => showView("list"));
 $("tab-story").addEventListener("click", () => showView("story"));
 
+// При открытии приложения (не чаще раза в 2 часа) — напоминание, что осталось на сегодня
+function showDailyBrief() {
+  if (isDemo()) return;
+  const last = Number(storage.get(KEYS.lastBrief, "0"));
+  if (Date.now() - last < 2 * 60 * 60 * 1000) return;
+  const h = todayStats();
+  const met = goalsMet(h);
+  if (met.learn && met.review) return;
+  storage.set(KEYS.lastBrief, String(Date.now()));
+  const parts = [];
+  if (!met.learn) parts.push(`новые слова ${h.learned || 0} из ${dailyGoal}`);
+  if (!met.review) parts.push(`повторение ${h.reviewed || 0} из ${reviewGoal}`);
+  const streak = streakDays();
+  showToast(`На сегодня: ${parts.join(", ")}` + (streak ? `. Серия ${streak} ${plural(streak, "день", "дня", "дней")} 🔥` : ""));
+}
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible") return;
+  renderStatus();
+  setTimeout(showDailyBrief, 600);
   const updated = Number(storage.get(KEYS.updated, "0"));
   if (Date.now() - updated > AUTO_REFRESH_MS) refresh();
 });
@@ -2627,6 +2726,7 @@ document.addEventListener("touchmove", e => {
 
 /* ---------- Старт ---------- */
 reconcileToday();
+setTimeout(showDailyBrief, 1200);
 renderModes();
 next();
 renderAll();
